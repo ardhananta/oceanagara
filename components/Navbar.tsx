@@ -72,7 +72,7 @@ export default function Navbar() {
             About Us
           </a>
           <a
-            href="#login"
+            href="/login"
             className={`text-xs font-semibold uppercase tracking-wider transition-colors duration-200 px-4 py-2 border rounded-none ${
               isScrolled
                 ? 'border-zinc-900 text-zinc-900 hover:bg-zinc-900 hover:text-white'
@@ -135,7 +135,7 @@ export default function Navbar() {
             About Us
           </a>
           <a
-            href="#login"
+            href="/login"
             onClick={() => setIsMobileMenuOpen(false)}
             className="px-6 py-2.5 border border-white text-white hover:bg-white hover:text-zinc-950 transition-colors"
           >
