@@ -20,21 +20,19 @@ export default function Navbar() {
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-200 ${
-        isScrolled
-          ? 'bg-white border-b border-zinc-200 py-4'
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled
+          ? 'bg-white/70 backdrop-blur-md border-b border-white/20 shadow-sm py-4'
           : 'bg-transparent py-6'
-      }`}
+        }`}
     >
       <div className="max-w-7xl mx-auto px-6 md:px-12 flex items-center justify-between">
         {/* Logo */}
         <a
           href="#"
-          className={`text-lg font-bold tracking-widest transition-colors duration-200 ${
-            isScrolled
+          className={`text-lg font-bold tracking-widest transition-colors duration-200 ${isScrolled
               ? 'text-zinc-900'
               : 'text-white'
-          }`}
+            }`}
         >
           OCEANAGARA
         </a>
@@ -43,41 +41,37 @@ export default function Navbar() {
         <div className="hidden md:flex items-center gap-8">
           <a
             href="#maps"
-            className={`text-xs font-semibold uppercase tracking-wider transition-colors duration-200 ${
-              isScrolled
+            className={`text-xs font-semibold uppercase tracking-wider transition-colors duration-200 ${isScrolled
                 ? 'text-zinc-500 hover:text-zinc-900'
-                : 'text-zinc-200 hover:text-white'
-            }`}
+                : 'text-zinc-600 hover:text-white'
+              }`}
           >
             Maps
           </a>
           <a
             href="#feature"
-            className={`text-xs font-semibold uppercase tracking-wider transition-colors duration-200 ${
-              isScrolled
+            className={`text-xs font-semibold uppercase tracking-wider transition-colors duration-200 ${isScrolled
                 ? 'text-zinc-500 hover:text-zinc-900'
-                : 'text-zinc-200 hover:text-white'
-            }`}
+                : 'text-zinc-600 hover:text-white'
+              }`}
           >
             Feature
           </a>
           <a
             href="#about-us"
-            className={`text-xs font-semibold uppercase tracking-wider transition-colors duration-200 ${
-              isScrolled
+            className={`text-xs font-semibold uppercase tracking-wider transition-colors duration-200 ${isScrolled
                 ? 'text-zinc-500 hover:text-zinc-900'
-                : 'text-zinc-200 hover:text-white'
-            }`}
+                : 'text-zinc-600 hover:text-white'
+              }`}
           >
             About Us
           </a>
           <a
             href="#login"
-            className={`text-xs font-semibold uppercase tracking-wider transition-colors duration-200 px-4 py-2 border rounded-none ${
-              isScrolled
+            className={`text-xs font-semibold uppercase tracking-wider transition-colors duration-200 px-4 py-2 border rounded-none ${isScrolled
                 ? 'border-zinc-900 text-zinc-900 hover:bg-zinc-900 hover:text-white'
-                : 'border-white text-white hover:bg-white hover:text-zinc-955'
-            }`}
+                : 'border-zinc-600 text-zinc-600 hover:bg-white hover:text-zinc-955'
+              }`}
           >
             Login
           </a>
@@ -90,9 +84,8 @@ export default function Navbar() {
           aria-label="Toggle menu"
         >
           <svg
-            className={`w-6 h-6 ${
-              isScrolled ? 'text-zinc-900' : 'text-white'
-            }`}
+            className={`w-6 h-6 ${isScrolled ? 'text-zinc-900' : 'text-white'
+              }`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -108,9 +101,8 @@ export default function Navbar() {
 
       {/* Mobile Drawer */}
       <div
-        className={`md:hidden fixed inset-0 z-40 bg-zinc-950/95 transform transition-transform duration-200 ${
-          isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
+        className={`md:hidden fixed inset-0 z-40 bg-zinc-950/95 transform transition-transform duration-200 ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
       >
         <div className="flex flex-col items-center justify-center h-full gap-8 text-sm font-semibold uppercase tracking-wider text-white">
           <a

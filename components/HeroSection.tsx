@@ -3,7 +3,7 @@ import Navbar from './Navbar';
 
 export default function HeroSection() {
   return (
-    <section className="relative w-full min-h-[100vh] md:min-h-[100vh] flex flex-col justify-between overflow-hidden bg-zinc-950">
+    <section className="relative w-full min-h-[100vh] md:min-h-[100vh] flex flex-col justify-between overflow-hidden ">
       {/* Background Image */}
       <div className="absolute inset-0 w-full h-full z-0 select-none pointer-events-none">
         <Image
