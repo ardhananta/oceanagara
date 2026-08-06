@@ -3,11 +3,13 @@ import Navbar from './Navbar';
 
 export default function HeroSection() {
   return (
-    <section className="relative w-full min-h-[100vh] md:min-h-[100vh] flex flex-col justify-between overflow-hidden ">
+    <section className="relative w-full min-h-[80vh] md:min-h-[130vh] flex flex-col justify-between overflow-hidden ">
+      {/* Navigation */}
+      <Navbar />
       {/* Background Image */}
       <div className="absolute inset-0 w-full h-full z-0 select-none pointer-events-none">
         <Image
-          src="/img/nelayan.png"
+          src="/img/nelayan 3.png"
           alt="Traditional fisherman boat in the open ocean"
           fill
           priority
@@ -15,9 +17,6 @@ export default function HeroSection() {
           className="object-cover object-bottom"
         />
       </div>
-
-      {/* Navigation */}
-      <Navbar />
 
       {/* Hero content */}
       <div className="relative z-10 flex-1 max-w-7xl mx-auto px-6 md:px-12 w-full flex items-center pt-24 pb-16">
