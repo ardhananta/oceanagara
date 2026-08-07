@@ -75,13 +75,13 @@ const FEATURES: Feature[] = [
 
 // Desktop stacked positions (absolute)
 const DESKTOP_POSITIONS: React.CSSProperties[] = [
-  { top: 0,   left: '50%', marginLeft: '-130px' },
-  { top: 160, left: 8 },
+  { top: 0, left: '50%', marginLeft: '-150px' },
+  { top: 160, left: -60 },
   { top: 160, right: 8 },
 ];
 
-const CARD_W = 300;
-const IMG_H  = 300;
+const CARD_W = 340;
+const IMG_H = 300;
 const BACK_H = 370;
 
 // ─── Shared Back Face ────────────────────────────────────────────────────────

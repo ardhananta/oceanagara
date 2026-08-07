@@ -55,19 +55,40 @@ const ROLE_DASHBOARD: Record<UserRole, DashboardPath> = {
   "peneliti":       "/dashboard/peneliti",
 };
 
-function resolveError(code: string | undefined): string {
+function resolveError(code: string | undefined, message?: string): string {
   const map: Record<string, string> = {
-    "auth/invalid-credential":      "Email atau password salah.",
-    "auth/wrong-password":          "Email atau password salah.",
-    "auth/user-not-found":          "Email atau password salah.",
-    "auth/email-already-in-use":    "Email sudah terdaftar. Silakan login.",
-    "auth/weak-password":           "Password terlalu lemah. Gunakan minimal 6 karakter.",
-    "auth/invalid-email":           "Format email tidak valid.",
-    "auth/too-many-requests":       "Terlalu banyak percobaan. Coba lagi beberapa saat.",
-    "auth/popup-closed-by-user":    "Login dibatalkan.",
-    "auth/cancelled-popup-request": "Login dibatalkan.",
+    // Auth errors
+    "auth/invalid-credential":                  "Email atau password salah.",
+    "auth/wrong-password":                      "Email atau password salah.",
+    "auth/user-not-found":                      "Email atau password salah.",
+    "auth/email-already-in-use":                "Email sudah terdaftar. Silakan login.",
+    "auth/weak-password":                       "Password terlalu lemah. Gunakan minimal 6 karakter.",
+    "auth/invalid-email":                       "Format email tidak valid.",
+    "auth/too-many-requests":                   "Terlalu banyak percobaan. Coba lagi beberapa saat.",
+    "auth/popup-closed-by-user":                "Login dibatalkan oleh pengguna.",
+    "auth/cancelled-popup-request":             "Permintaan login dibatalkan.",
+    "auth/popup-blocked":                       "Popup diblokir oleh browser. Harap izinkan popup di browser Anda dan coba lagi.",
+    "auth/unauthorized-domain":                 "Domain ini belum diizinkan di Firebase Console (Authentication > Settings > Authorized domains).",
+    "auth/operation-not-allowed":               "Metode login Google belum diaktifkan di Firebase Console (Authentication > Sign-in method).",
+    "auth/account-exists-with-different-credential": "Akun dengan email ini sudah terdaftar menggunakan metode login lain.",
+    "auth/credential-already-in-use":           "Kredensial Google ini sudah digunakan oleh akun pengguna lain.",
+    "auth/auth-domain-config-required":         "Konfigurasi authDomain Firebase belum sesuai.",
+    "auth/network-request-failed":              "Koneksi jaringan terputus. Periksa jaringan internet Anda.",
+    "auth/internal-error":                      "Terjadi kesalahan internal pada Firebase Auth. Coba lagi.",
+    // Firestore errors
+    "permission-denied":                        "Akses database (Firestore) ditolak. Periksa Firestore Security Rules.",
+    "unavailable":                              "Layanan Firestore sedang tidak tersedia.",
   };
-  return map[code ?? ""] ?? "Terjadi kesalahan. Silakan coba lagi.";
+
+  if (code && map[code]) {
+    return map[code];
+  }
+
+  if (code) {
+    return `Gagal autentikasi (${code}): ${message ?? "Terjadi kesalahan. Silakan coba lagi."}`;
+  }
+
+  return message || "Terjadi kesalahan. Silakan coba lagi.";
 }
 
 /** Create a base Firestore document right after account creation if it doesn't exist yet. */
@@ -82,8 +103,8 @@ async function bootstrapUserDoc(
   if (!snap.exists()) {
     await setDoc(userRef, {
       uid:              user.uid,
-      email:            user.email,
-      displayName:      user.displayName,
+      email:            user.email ?? null,
+      displayName:      user.displayName ?? null,
       photoURL:         user.photoURL ?? null,
       provider,
       profileCompleted: false,
@@ -124,7 +145,10 @@ export async function loginWithEmail(
     const redirectTo = await resolveRedirect(user.uid);
     return { user, redirectTo };
   } catch (err: unknown) {
-    throw new Error(resolveError((err as { code?: string }).code));
+    console.error("Email login error details:", err);
+    const code = (err as { code?: string })?.code;
+    const message = (err as { message?: string })?.message;
+    throw new Error(resolveError(code, message));
   }
 }
 
@@ -139,11 +163,20 @@ export async function registerWithEmail(
 ): Promise<AuthResult> {
   try {
     const { user } = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(user, { displayName: displayName.trim() });
-    await bootstrapUserDoc(user, "email");
+    if (displayName.trim()) {
+      await updateProfile(user, { displayName: displayName.trim() });
+    }
+    try {
+      await bootstrapUserDoc(user, "email");
+    } catch (fsErr) {
+      console.warn("Bootstrap Firestore doc failed (ignored):", fsErr);
+    }
     return { user, redirectTo: "/fill-form" };
   } catch (err: unknown) {
-    throw new Error(resolveError((err as { code?: string }).code));
+    console.error("Email registration error details:", err);
+    const code = (err as { code?: string })?.code;
+    const message = (err as { message?: string })?.message;
+    throw new Error(resolveError(code, message));
   }
 }
 
@@ -158,13 +191,20 @@ export async function loginWithGoogle(): Promise<AuthResult> {
 
     const { user } = await signInWithPopup(auth, provider);
 
-    // Bootstrap doc (merge: true means existing users are unaffected)
-    await bootstrapUserDoc(user, "google");
+    // Bootstrap doc (safe fallback if Firestore fails)
+    try {
+      await bootstrapUserDoc(user, "google");
+    } catch (fsErr) {
+      console.warn("Bootstrap Firestore doc failed during Google login:", fsErr);
+    }
 
     const redirectTo = await resolveRedirect(user.uid);
     return { user, redirectTo };
   } catch (err: unknown) {
-    throw new Error(resolveError((err as { code?: string }).code));
+    console.error("Google Auth error details:", err);
+    const code = (err as { code?: string })?.code;
+    const message = (err as { message?: string })?.message;
+    throw new Error(resolveError(code, message));
   }
 }
 
@@ -186,8 +226,13 @@ export async function saveUserProfile(
   uid: string,
   data: Record<string, unknown>
 ): Promise<void> {
+  const cleanedData: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(data)) {
+    cleanedData[key] = val === undefined ? null : val;
+  }
+
   await setDoc(doc(db, "users", uid), {
-    ...data,
+    ...cleanedData,
     profileCompleted:   true,
     profileCompletedAt: serverTimestamp(),
   });
@@ -198,9 +243,14 @@ export async function saveUserProfile(
  * Returns null if the document doesn't exist.
  */
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
-  const snap = await getDoc(doc(db, "users", uid));
-  if (!snap.exists()) return null;
-  return snap.data() as UserProfile;
+  try {
+    const snap = await getDoc(doc(db, "users", uid));
+    if (!snap.exists()) return null;
+    return snap.data() as UserProfile;
+  } catch (err) {
+    console.error("getUserProfile failed (Firestore offline/permission issue?):", err);
+    return null;
+  }
 }
 
 /**
