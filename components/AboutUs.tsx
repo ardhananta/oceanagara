@@ -1,16 +1,63 @@
-import React from 'react';
+'use client';
+
+import React, { useEffect, useRef, useState } from 'react';
+
+// ─── useCountUp: mulai hitung saat section masuk viewport ────────────────────
+
+function useCountUp(target: number, duration = 2200) {
+  const [count, setCount] = useState(0);
+  const sectionRef = useRef<HTMLElement>(null);
+  const started = useRef(false);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting || started.current) return;
+        started.current = true;
+
+        const startTime = performance.now();
+        const tick = (now: number) => {
+          const progress = Math.min((now - startTime) / duration, 1);
+          const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+          setCount(Math.round(eased * target));
+          if (progress < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+        observer.disconnect();
+      },
+      { threshold: 0.1 } // trigger saat 10% section terlihat
+    );
+
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, [target, duration]);
+
+  return { count, sectionRef };
+}
+
+// ─── AboutUs ─────────────────────────────────────────────────────────────────
 
 export default function AboutUs() {
+  const { count, sectionRef } = useCountUp(5280);
+
   return (
-    <section id="about-us" className="py-24 bg-white border-b border-zinc-150">
+    <section
+      id="about-us"
+      ref={sectionRef}
+      className="pb-24 bg-white border-b border-zinc-150"
+    >
       <div className="max-w-7xl mx-auto px-6 md:px-12">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
+
           {/* Column 1: Core System Specifications (Table style) */}
           <div className="border border-zinc-200 bg-white p-8">
             <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-6">
               Parameter Sistem & Kinerja
             </h3>
-            
+
             <div className="divide-y divide-zinc-200 text-xs text-zinc-600">
               <div className="py-3.5 flex justify-between">
                 <span className="font-semibold text-zinc-900 uppercase tracking-wider">Frekuensi Pemantauan</span>
@@ -40,9 +87,14 @@ export default function AboutUs() {
 
             {/* Quick Metrics Bar */}
             <div className="grid grid-cols-3 gap-4 mt-8 pt-6 border-t border-zinc-200 text-center">
+              {/* Armada Aktif — animated counter */}
               <div>
-                <span className="block text-xl font-bold text-zinc-900">5,280+</span>
-                <span className="text-[10px] text-zinc-400 uppercase tracking-wider block mt-1">Armada Aktif</span>
+                <span className="block text-xl font-bold text-zinc-900 tabular-nums">
+                  {count.toLocaleString('id-ID')}+
+                </span>
+                <span className="text-[10px] text-zinc-400 uppercase tracking-wider block mt-1">
+                  Armada Aktif
+                </span>
               </div>
               <div>
                 <span className="block text-xl font-bold text-zinc-900">24 Jam</span>
@@ -64,9 +116,9 @@ export default function AboutUs() {
               Membangun Kedaulatan & Keamanan Bahari Indonesia
             </h2>
             <div className="mt-4 h-0.5 w-16 bg-zinc-900" />
-            
+
             <p className="mt-6 text-sm text-zinc-500 leading-relaxed">
-              Oceanagara adalah platform navigasi maritim digital terpadu yang dirancang untuk memperkuat keselamatan berlayar dan stabilitas rantai dingin logistik ikan bagi nelayan Indonesia. 
+              Oceanagara adalah platform navigasi maritim digital terpadu yang dirancang untuk memperkuat keselamatan berlayar dan stabilitas rantai dingin logistik ikan bagi nelayan Indonesia.
             </p>
             <p className="mt-4 text-sm text-zinc-500 leading-relaxed">
               Kami menyatukan telemetry satelit radar dengan instrumen pelacakan cold chain untuk menjamin bahwa ikan hasil tangkapan nelayan sampai di pelabuhan dalam kondisi terbaik, sekaligus memastikan setiap pelayaran terpantau penuh oleh otoritas laut.
@@ -99,6 +151,7 @@ export default function AboutUs() {
               </div>
             </div>
           </div>
+
         </div>
       </div>
     </section>
