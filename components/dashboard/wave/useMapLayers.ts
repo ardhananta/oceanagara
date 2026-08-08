@@ -48,10 +48,53 @@ export function useMapLayers({
 
     activePoints.forEach((pt) => {
       const forecast = pt.data?.forecasts?.[0];
-      const waveHeight = forecast?.waveHeight ?? 0.8;
-      const wavePeriod = forecast?.wavePeriod ?? 7;
-      const windSpeed = forecast?.windSpeed ?? 5.2;
-      const windDir = forecast?.windDirection ?? 110;
+
+      // No real telemetry: render a neutral marker instead of fake values.
+      if (!forecast) {
+        const noDataHtml = `
+          <div style="display:flex;flex-direction:column;align-items:center;cursor:pointer;">
+            <span class="absolute h-2.5 w-2.5 rounded-full opacity-70 ${pt.loading ? 'animate-ping' : ''}" style="background:#a1a1aa;margin-bottom:26px;"></span>
+            <div style="
+              background:#f4f4f5;
+              color:#a1a1aa;
+              border:1.5px solid #d4d4d8;
+              font-size:11px;
+              font-weight:700;
+              padding:4px 9px;
+              border-radius:8px;
+              box-shadow:0 2px 6px rgba(0,0,0,0.15);
+              white-space:nowrap;
+              display:flex;
+              align-items:center;
+              gap:6px;
+              font-family:inherit;
+            ">
+              <span style="width:7px;height:7px;border-radius:50%;background:#a1a1aa;display:inline-block;"></span>
+              <span>${pt.loading ? 'Memuat…' : pt.failed ? 'Gagal dimuat' : 'No data'}</span>
+            </div>
+          </div>
+        `;
+        const noDataIcon = L.divIcon({
+          className: '',
+          html: noDataHtml,
+          iconSize: [110, 28],
+          iconAnchor: [55, 14],
+        });
+        const noDataMarker = L.marker([pt.lat, pt.lon], { icon: noDataIcon });
+        noDataMarker.bindTooltip(`<b>${pt.name}</b><br/>Telemetri BMKG ${pt.loading ? 'belum dimuat' : pt.failed ? 'gagal dimuat' : 'tidak tersedia'}`, {
+          direction: 'top',
+          offset: [0, -14],
+          opacity: 0.95,
+        });
+        noDataMarker.on('click', () => onSelectPoint(pt));
+        layerGroup.addLayer(noDataMarker);
+        return;
+      }
+
+      const waveHeight = forecast.waveHeight;
+      const wavePeriod = forecast.wavePeriod;
+      const windSpeed = forecast.windSpeed;
+      const windDir = forecast.windDirection;
       const windKnots = msToKnots(windSpeed);
       const headingDir = (windDir + 180) % 360;
 

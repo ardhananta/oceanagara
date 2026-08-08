@@ -37,48 +37,6 @@ const CACHE_TTL_MS = 45 * 1000;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let cache: { payload: any; fetchedAt: number } | null = null;
 
-/** Synthetic fallback field used only when BMKG is unreachable */
-function buildSyntheticGrid() {
-  const dLon = (OUT_GRID.lo2 - OUT_GRID.lo1) / (OUT_GRID.nx - 1);
-  const dLat = (OUT_GRID.la1 - OUT_GRID.la2) / (OUT_GRID.ny - 1);
-
-  const uOut: number[] = [];
-  const vOut: number[] = [];
-
-  for (let iy = 0; iy < OUT_GRID.ny; iy++) {
-    const lat = OUT_GRID.la1 - iy * dLat; // North to South
-    for (let ix = 0; ix < OUT_GRID.nx; ix++) {
-      const lon = OUT_GRID.lo1 + ix * dLon;
-
-      // Synthetic physically-plausible monsoon field over Indonesia
-      const lonNorm = (lon - 95) / 46;
-      const latNorm = (lat + 11) / 21;
-      const u = 4.5 * Math.sin(latNorm * Math.PI + 0.3) * Math.cos(lonNorm * Math.PI * 1.5 - 0.8);
-      const v = -2.8 * Math.cos(latNorm * Math.PI * 1.2 - 0.5) * Math.sin(lonNorm * Math.PI + 0.4);
-
-      uOut.push(parseFloat(u.toFixed(3)));
-      vOut.push(parseFloat(v.toFixed(3)));
-    }
-  }
-
-  return {
-    source: 'synthetic',
-    baserun: '',
-    grid: {
-      lo1: OUT_GRID.lo1,
-      la1: OUT_GRID.la1,
-      lo2: OUT_GRID.lo2,
-      la2: OUT_GRID.la2,
-      nx: OUT_GRID.nx,
-      ny: OUT_GRID.ny,
-      dx: dLon,
-      dy: dLat,
-    },
-    uData: uOut,
-    vData: vOut,
-  };
-}
-
 /** Downsample the real INAWAVES grid (bilinear) onto OUT_GRID */
 function buildResponseFromBmkg(wind: InawavesWindGrid) {
   const dLon = (OUT_GRID.lo2 - OUT_GRID.lo1) / (OUT_GRID.nx - 1);
@@ -140,9 +98,16 @@ export async function GET() {
     console.error('[BMKG Wind Field Error]:', err);
   }
 
-  const result = payload ?? buildSyntheticGrid();
+  if (!payload) {
+    // No real data: never fabricate a synthetic field — report failure so the
+    // client can show a loading/error state instead of fake wind animation.
+    return NextResponse.json(
+      { error: 'Grid angin INAWAVES BMKG tidak tersedia saat ini.' },
+      { status: 503 }
+    );
+  }
 
-  cache = { payload: result, fetchedAt: Date.now() };
+  cache = { payload, fetchedAt: Date.now() };
 
-  return NextResponse.json(result);
+  return NextResponse.json(payload);
 }

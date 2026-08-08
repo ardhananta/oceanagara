@@ -1,5 +1,5 @@
 import { CARDINALS, LONG_PERIOD_SWELL_S, SWELL_DANGER_MIN_HEIGHT_M, WAVE_HEIGHT_ALERT_M, WAVE_HEIGHT_MODERATE_M, WIND_STORM_KT, WIND_STRONG_KT, WIND_MODERATE_KT } from './constants';
-import type { BmkgWeatherData, TrendPeriodPoint, TrendPoint, WaveRegionPoint, WindFieldGrid } from './types';
+import type { BmkgWeatherData, TrendPeriodPoint, TrendPoint, WindFieldGrid } from './types';
 
 /** Convert compass degrees to cardinal direction info */
 export function getCardinalInfo(deg: number) {
@@ -125,31 +125,6 @@ export function sampleWindGrid(lat: number, lon: number, grid: WindFieldGrid) {
   const speedMs = Math.sqrt(uVal * uVal + vVal * vVal);
   const speedKnots = msToKnots(speedMs);
   return { u: uVal, v: vVal, speedMs, speedKnots };
-}
-
-/** Fallback: IDW from per-region BMKG telemetry points when grid not yet loaded */
-export function sampleWindFromPoints(lat: number, lon: number, points: WaveRegionPoint[]) {
-  let totalWeight = 0;
-  let weightedU = 0;
-  let weightedV = 0;
-
-  for (const pt of points) {
-    const forecast = pt.data?.forecasts?.[0];
-    const spd = forecast?.windSpeed ?? 5.2;
-    const dir = forecast?.windDirection ?? 110;
-    const headingRad = ((dir + 180) % 360) * (Math.PI / 180);
-    const u = spd * Math.sin(headingRad);
-    const v = spd * Math.cos(headingRad);
-    const distSq = Math.max(0.12, (lat - pt.lat) ** 2 + (lon - pt.lon) ** 2);
-    weightedU += u / distSq;
-    weightedV += v / distSq;
-    totalWeight += 1 / distSq;
-  }
-
-  const u = weightedU / totalWeight;
-  const v = weightedV / totalWeight;
-  const speedMs = Math.sqrt(u * u + v * v);
-  return { u, v, speedMs, speedKnots: msToKnots(speedMs) };
 }
 
 /** Normalized X/Y series for the wave-height line on the mini trend chart */

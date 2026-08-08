@@ -15,7 +15,7 @@ export async function fetchWindField(): Promise<WindFieldResult> {
     if (json?.uData && json?.vData && json?.grid) {
       const grid: WindFieldGrid = { ...json.grid, uData: json.uData, vData: json.vData };
       const meta: WindFieldMeta = {
-        source: json.source === 'bmkg-inawaves' ? 'bmkg-inawaves' : json.source === 'synthetic' ? 'synthetic' : 'unknown',
+        source: json.source === 'bmkg-inawaves' ? 'bmkg-inawaves' : 'unknown',
         baserun: json.baserun ?? '',
       };
       return { grid, meta };
@@ -41,9 +41,10 @@ export async function fetchRegionWaveData(): Promise<{ points: WaveRegionPoint[]
     })
   );
 
-  const points = results.map((result) =>
-    result.status === 'fulfilled' ? result.value : ({ ...INDONESIA_MARINE_REGIONS[0], loading: false })
-  );
+  const points = results.map((result, i) => {
+    const reg = INDONESIA_MARINE_REGIONS[i];
+    return result.status === 'fulfilled' ? result.value : { ...reg, loading: false, failed: true };
+  });
 
   const allFailed = results.filter((r) => r.status === 'rejected').length === INDONESIA_MARINE_REGIONS.length;
   return { points, allFailed };

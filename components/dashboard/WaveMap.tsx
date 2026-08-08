@@ -52,9 +52,9 @@ export default function WaveMap() {
     mapViewMode,
     onSelectPoint: handleSelectPoint,
   });
-  useVelocityCanvas({ leafletReady, mapInstanceRef, mapViewMode, regionPoints, windGrid });
+  useVelocityCanvas({ leafletReady, mapInstanceRef, mapViewMode, windGrid });
 
-  const windIsSynthetic = windFieldMeta?.source === 'synthetic';
+  const windGridMissing = windFieldMeta?.source !== 'bmkg-inawaves' || !windGrid;
   const dangerousRegions = regionPoints
     .filter((p) => (p.data?.forecasts?.[0]?.waveHeight ?? 0) >= 2.5)
     .map((p) => p.name.split('(')[0].trim());
@@ -78,9 +78,9 @@ export default function WaveMap() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-zinc-100 pb-4">
         <div>
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider text-white flex items-center gap-1.5 shadow-xs ${windIsSynthetic ? 'bg-amber-600' : 'bg-[#162e52]'
+            <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider text-white flex items-center gap-1.5 shadow-xs ${windGridMissing ? 'bg-amber-600' : 'bg-[#162e52]'
               }`}>
-              <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${windIsSynthetic ? 'bg-amber-200' : 'bg-sky-400'}`} />
+              <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${windGridMissing ? 'bg-amber-200' : 'bg-sky-400'}`} />
               BMKG Pusmar API23 • Velocity Streamline Engine
             </span>
             {lastUpdatedTime && (
@@ -197,13 +197,14 @@ export default function WaveMap() {
         </div>
       )}
 
-      {windIsSynthetic && mapViewMode === 'wind' && (
+      {windGridMissing && mapViewMode === 'wind' && (
         <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
           <svg className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
           </svg>
           <p className="text-[11px] text-amber-700 leading-relaxed">
-            Grid angin INAWAVES tidak dapat diambil dari BMKG saat ini. Animasi menggunakan bidang angin sintetis sebagai cadangan; data badge marker tetap dari API BMKG.
+            Grid angin INAWAVES tidak dapat diambil dari BMKG saat ini, sehingga animasi streamline tidak tersedia.
+            Data badge marker tetap dari API BMKG bila berhasil dimuat.
           </p>
         </div>
       )}
@@ -257,12 +258,12 @@ export default function WaveMap() {
                 Periode rata-rata: {LONG_PERIOD_SWELL_S}s+ = swell panjang (berbahaya)
               </p>
             )}
-            {mapViewMode === 'wind' && windIsSynthetic && (
+            {mapViewMode === 'wind' && windGridMissing && (
               <p className="text-[9px] text-amber-600 font-bold pt-1 border-t border-zinc-100 flex items-center gap-1">
                 <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
                 </svg>
-                Animasi memakai data sintetis
+                Animasi tidak tersedia (grid BMKG belum dimuat)
               </p>
             )}
           </div>
@@ -449,10 +450,11 @@ export default function WaveMap() {
                 </>
               )}
               {regionPoints.map((pt) => {
-                const wh = pt.data?.forecasts?.[0]?.waveHeight ?? 0.8;
-                const wp = pt.data?.forecasts?.[0]?.wavePeriod ?? 7;
-                const windDir = pt.data?.forecasts?.[0]?.windDirection ?? 110;
-                const windSpd = pt.data?.forecasts?.[0]?.windSpeed ?? 5.2;
+                const hasData = Boolean(pt.data?.forecasts?.length);
+                const wh = pt.data?.forecasts?.[0]?.waveHeight ?? 0;
+                const wp = pt.data?.forecasts?.[0]?.wavePeriod ?? 0;
+                const windDir = pt.data?.forecasts?.[0]?.windDirection ?? 0;
+                const windSpd = pt.data?.forecasts?.[0]?.windSpeed ?? 0;
                 const windKt = msToKnots(windSpd);
                 const headingDir = (windDir + 180) % 360;
 
@@ -481,33 +483,47 @@ export default function WaveMap() {
                     <div>
                       <p className="text-xs font-semibold truncate max-w-[150px]">{pt.name}</p>
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className={`text-[10px] font-mono ${isSelected ? 'text-sky-200' : 'text-zinc-500'}`}>
-                          {windKt} kt ({getCardinalInfo(windDir).abbr})
-                        </span>
-                        <span className="text-zinc-300">•</span>
-                        <div className="flex items-center gap-1 text-[10px] font-semibold">
-                          <svg
-                            className={`w-3 h-3 transition-transform ${isSelected ? 'text-sky-300' : 'text-sky-600'}`}
-                            style={{ transform: `rotate(${headingDir}deg)` }}
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth={2.5}
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 20V4M7 9l5-5 5 5" />
-                          </svg>
-                          <span className={isSelected ? 'text-white' : 'text-zinc-700'}>{windSpd} m/s</span>
-                        </div>
-                        <span className="text-zinc-300">•</span>
-                        <span className={`text-[10px] font-semibold ${isSelected ? 'text-orange-200' : wp >= LONG_PERIOD_SWELL_S ? 'text-orange-600' : 'text-zinc-500'}`}>
-                          {wp.toFixed(1)}s
-                        </span>
+                        {hasData ? (
+                          <>
+                            <span className={`text-[10px] font-mono ${isSelected ? 'text-sky-200' : 'text-zinc-500'}`}>
+                              {windKt} kt ({getCardinalInfo(windDir).abbr})
+                            </span>
+                            <span className="text-zinc-300">•</span>
+                            <div className="flex items-center gap-1 text-[10px] font-semibold">
+                              <svg
+                                className={`w-3 h-3 transition-transform ${isSelected ? 'text-sky-300' : 'text-sky-600'}`}
+                                style={{ transform: `rotate(${headingDir}deg)` }}
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth={2.5}
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 20V4M7 9l5-5 5 5" />
+                              </svg>
+                              <span className={isSelected ? 'text-white' : 'text-zinc-700'}>{windSpd} m/s</span>
+                            </div>
+                            <span className="text-zinc-300">•</span>
+                            <span className={`text-[10px] font-semibold ${isSelected ? 'text-orange-200' : wp >= LONG_PERIOD_SWELL_S ? 'text-orange-600' : 'text-zinc-500'}`}>
+                              {wp.toFixed(1)}s
+                            </span>
+                          </>
+                        ) : (
+                          <span className={`text-[10px] font-semibold ${isSelected ? 'text-amber-200' : 'text-amber-600'}`}>
+                            {pt.loading ? 'Memuat data…' : pt.failed ? 'Gagal dimuat' : 'Data tidak tersedia'}
+                          </span>
+                        )}
                       </div>
                     </div>
 
-                    <span className={`px-2 py-0.5 rounded text-xs font-bold border tabular-nums ${isSelected ? 'bg-white text-[#162e52] border-white' : badgeStyle}`}>
-                      {wh.toFixed(1)} m
-                    </span>
+                    {hasData ? (
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold border tabular-nums ${isSelected ? 'bg-white text-[#162e52] border-white' : badgeStyle}`}>
+                        {wh.toFixed(1)} m
+                      </span>
+                    ) : (
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold border tabular-nums ${isSelected ? 'bg-white/20 text-white border-white/40' : 'bg-zinc-100 text-zinc-400 border-zinc-200'}`}>
+                        {pt.loading ? '…' : '—'}
+                      </span>
+                    )}
                   </div>
                 );
               })}

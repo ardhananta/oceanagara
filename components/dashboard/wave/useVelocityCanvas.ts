@@ -2,9 +2,9 @@
 
 import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
-import { sampleWindFromPoints, sampleWindGrid, windStrokeColor } from './calculations';
+import { sampleWindGrid, windStrokeColor } from './calculations';
 import { getLeaflet } from './leaflet';
-import type { WaveRegionPoint, WindFieldGrid } from './types';
+import type { WindFieldGrid } from './types';
 import type { MapViewMode } from './useMapLayers';
 
 interface UseVelocityCanvasParams {
@@ -12,7 +12,6 @@ interface UseVelocityCanvasParams {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mapInstanceRef: RefObject<any>;
   mapViewMode: MapViewMode;
-  regionPoints: WaveRegionPoint[];
   windGrid: WindFieldGrid | null;
 }
 
@@ -27,7 +26,7 @@ interface StreamParticle {
  * Native canvas velocity streamline engine (matching Leaflet-Velocity & Windy).
  * Animates wind vector flow as moving particles with arrowheads.
  */
-export function useVelocityCanvas({ leafletReady, mapInstanceRef, mapViewMode, regionPoints, windGrid }: UseVelocityCanvasParams) {
+export function useVelocityCanvas({ leafletReady, mapInstanceRef, mapViewMode, windGrid }: UseVelocityCanvasParams) {
   const animFrameIdRef = useRef<number | null>(null);
   const canvasOverlayRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -48,6 +47,10 @@ export function useVelocityCanvas({ leafletReady, mapInstanceRef, mapViewMode, r
     }
 
     if (mapViewMode !== 'wind') return;
+
+    // Only animate when the real BMKG INAWAVES grid is available. Never
+    // fabricate wind vectors from region points (that would show fake data).
+    if (!windGrid) return;
 
     // Create Canvas overlay
     const canvas = document.createElement('canvas');
@@ -114,13 +117,9 @@ export function useVelocityCanvas({ leafletReady, mapInstanceRef, mapViewMode, r
           return;
         }
 
-        // Convert pixel to LatLng and sample wind vector
+        // Convert pixel to LatLng and sample wind vector from real BMKG grid
         const latLng = map.containerPointToLatLng(L.point(p.x, p.y));
-
-        // Use real BMKG grid if available, else fallback to IDW
-        const vec = windGrid
-          ? sampleWindGrid(latLng.lat, latLng.lng, windGrid)
-          : sampleWindFromPoints(latLng.lat, latLng.lng, regionPoints);
+        const vec = sampleWindGrid(latLng.lat, latLng.lng, windGrid);
 
         // Movement scale factor
         const scale = 0.45;
@@ -196,7 +195,7 @@ export function useVelocityCanvas({ leafletReady, mapInstanceRef, mapViewMode, r
         canvasOverlayRef.current = null;
       }
     };
-  }, [leafletReady, mapViewMode, regionPoints, windGrid, mapInstanceRef]);
+  }, [leafletReady, mapViewMode, windGrid, mapInstanceRef]);
 
   return animFrameIdRef;
 }

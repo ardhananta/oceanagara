@@ -10,6 +10,7 @@ export interface WaveRegionPoint {
   baseRadiusKm: number;
   data?: BmkgWeatherData;
   loading?: boolean;
+  failed?: boolean;
 }
 
 export interface WindFieldGrid {
@@ -19,7 +20,7 @@ export interface WindFieldGrid {
 }
 
 export interface WindFieldMeta {
-  source: 'bmkg-inawaves' | 'synthetic' | 'unknown';
+  source: 'bmkg-inawaves' | 'unknown';
   baserun: string;
 }
 
