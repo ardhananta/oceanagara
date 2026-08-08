@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
-import { getLeaflet } from './leaflet';
+import { loadLeaflet, getLeaflet } from './leaflet';
 
 export interface LeafletMap {
   mapRef: RefObject<HTMLDivElement | null>;
@@ -22,23 +22,19 @@ export function useLeafletMap(): LeafletMap {
   const layerGroupRef = useRef<any>(null);
   const [leafletReady, setLeafletReady] = useState(false);
 
-  // Load Leaflet JS & CSS
+  // Load Leaflet JS & CSS (once, shared across remounts)
   useEffect(() => {
-    if (document.getElementById('leaflet-css')) {
-      const timer = setTimeout(() => setLeafletReady(true), 0);
-      return () => clearTimeout(timer);
-    }
-
-    const link = document.createElement('link');
-    link.id = 'leaflet-css';
-    link.rel = 'stylesheet';
-    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-    document.head.appendChild(link);
-
-    const script = document.createElement('script');
-    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-    script.onload = () => setLeafletReady(true);
-    document.head.appendChild(script);
+    let cancelled = false;
+    loadLeaflet()
+      .then(() => {
+        if (!cancelled) setLeafletReady(true);
+      })
+      .catch(() => {
+        // CDN unavailable — leave map empty rather than crashing
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Initialize Leaflet Map
@@ -46,6 +42,8 @@ export function useLeafletMap(): LeafletMap {
     if (!leafletReady || !mapRef.current || mapInstanceRef.current) return;
 
     const L = getLeaflet();
+    if (!L) return;
+
     const map = L.map(mapRef.current, {
       center: [-2.5, 118.0],
       zoom: 5,

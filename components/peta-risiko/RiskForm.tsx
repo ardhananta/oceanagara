@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { LocationQuery } from '@/app/types/maritime';
+import { regionSourcePreview, type NearbySource } from './sources';
 
 export interface RiskFormData {
   regionPreset: string;
   customRegionName: string;
   startDate: string;
   endDate: string;
-  datePreset: '7d' | '14d' | '30d' | 'custom';
+  datePreset: 'realtime' | '7d' | '14d' | '30d' | 'custom';
   pollutionTypes: string[];
   additionalNotes: string;
 }
@@ -18,7 +19,7 @@ interface RiskFormProps {
   isLoading: boolean;
 }
 
-const REGION_PRESETS = [
+export const REGION_PRESETS = [
   { id: 'semarang', name: 'Laut Jawa (Pesisir Semarang)', lat: -6.9, lon: 110.4, bbox: { north: -5.5, south: -8.0, east: 112.0, west: 108.5 } },
   { id: 'jakarta', name: 'Teluk Jakarta', lat: -5.97, lon: 106.83, bbox: { north: -5.8, south: -6.1, east: 107.0, west: 106.6 } },
   { id: 'makassar', name: 'Selat Makassar', lat: -3.0, lon: 118.0, bbox: { north: -1.0, south: -5.0, east: 120.0, west: 116.0 } },
@@ -59,7 +60,7 @@ const POLLUTION_OPTIONS = [
   },
   {
     id: 'kapal',
-    label: 'Limbah Kapal & Tanker (AIS)',
+    label: 'Aktivitas Kapal & Tanker (GFW)',
     icon: (
       <svg className="w-5 h-5 text-indigo-700 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3 19.5l1.8-6h14.4l1.8 6H3Z" />
@@ -81,20 +82,31 @@ const POLLUTION_OPTIONS = [
 export default function RiskForm({ onSubmit, isLoading }: RiskFormProps) {
   const [formData, setFormData] = useState<RiskFormData>(() => {
     const todayStr = new Date().toISOString().split('T')[0];
-    const default7dStr = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
     return {
       regionPreset: 'semarang',
       customRegionName: '',
-      startDate: default7dStr,
+      startDate: todayStr,
       endDate: todayStr,
-      datePreset: '7d',
+      datePreset: 'realtime',
       pollutionTypes: ['minyak', 'industri', 'plastik'],
       additionalNotes: '',
     };
   });
 
-  const handleDatePreset = (preset: '7d' | '14d' | '30d' | 'custom') => {
+  const handleDatePreset = (preset: 'realtime' | '7d' | '14d' | '30d' | 'custom') => {
     const end = new Date().toISOString().split('T')[0];
+
+    if (preset === 'realtime') {
+      // Mode realtime: mulai dari tanggal terbaru (hari ini)
+      setFormData((prev) => ({
+        ...prev,
+        datePreset: preset,
+        startDate: end,
+        endDate: end,
+      }));
+      return;
+    }
+
     let days = 7;
     if (preset === '14d') days = 14;
     if (preset === '30d') days = 30;
@@ -142,6 +154,15 @@ export default function RiskForm({ onSubmit, isLoading }: RiskFormProps) {
 
     onSubmit(locationQuery);
   };
+
+  // Live preview: industrial pollution sources near the selected region
+  const selectedRegion = REGION_PRESETS.find((r) => r.id === formData.regionPreset);
+  const regionSources: NearbySource[] = useMemo(
+    () => (selectedRegion ? regionSourcePreview(selectedRegion.lat, selectedRegion.lon, 200) : []),
+    [selectedRegion]
+  );
+
+  const selectedLabels = POLLUTION_OPTIONS.filter((o) => formData.pollutionTypes.includes(o.id)).map((o) => o.label);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 text-zinc-900 font-sans">
@@ -198,6 +219,27 @@ export default function RiskForm({ onSubmit, isLoading }: RiskFormProps) {
             />
           </div>
         )}
+
+        {/* Live preview: pollution sources near selected region */}
+        {regionSources.length > 0 && (
+          <div className="pt-1">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-600 mb-1.5 flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5 text-fuchsia-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+              </svg>
+              Sumber Pencemaran Potensial di Sekitar Wilayah Ini
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {regionSources.map((s, i) => (
+                <span key={i} className="text-[10px] font-semibold text-zinc-700 bg-fuchsia-50 border border-fuchsia-200 rounded-lg px-2 py-1">
+                  {s.name}
+                  <span className="text-fuchsia-500 font-bold ml-1">{Math.round(s.distanceKm)} km</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* SECTION 2: Rentang Waktu Analisis */}
@@ -219,6 +261,7 @@ export default function RiskForm({ onSubmit, isLoading }: RiskFormProps) {
         {/* Date Presets */}
         <div className="flex flex-wrap items-center gap-2">
           {[
+            { id: 'realtime', label: 'Realtime (Tanggal Terbaru)' },
             { id: '7d', label: '7 Hari Terakhir' },
             { id: '14d', label: '14 Hari Terakhir' },
             { id: '30d', label: '30 Hari Terakhir' },
@@ -227,7 +270,7 @@ export default function RiskForm({ onSubmit, isLoading }: RiskFormProps) {
             <button
               type="button"
               key={dp.id}
-              onClick={() => handleDatePreset(dp.id as '7d' | '14d' | '30d' | 'custom')}
+              onClick={() => handleDatePreset(dp.id as 'realtime' | '7d' | '14d' | '30d' | 'custom')}
               className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border ${
                 formData.datePreset === dp.id
                   ? 'bg-[#162e52] text-white border-[#162e52]'
@@ -238,6 +281,19 @@ export default function RiskForm({ onSubmit, isLoading }: RiskFormProps) {
             </button>
           ))}
         </div>
+
+        {/* Realtime mode note */}
+        {formData.datePreset === 'realtime' && (
+          <div className="flex items-start gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3.5 py-2.5">
+            <svg className="w-4 h-4 text-sky-600 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            <p className="text-[11px] text-sky-800 font-medium leading-relaxed">
+              Mode <b>realtime</b>: observasi dimulai otomatis dari tanggal terbaru (hari ini) — data
+              BMKG &amp; GFW diambil secara langsung saat analisis dijalankan.
+            </p>
+          </div>
+        )}
 
         {/* Date Pickers */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
@@ -348,6 +404,35 @@ export default function RiskForm({ onSubmit, isLoading }: RiskFormProps) {
         />
       </div>
 
+      {/* Live summary strip */}
+      <div className="bg-[#162e52] text-white rounded-2xl px-5 py-3.5 shadow-lg flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="flex items-center gap-2 text-xs font-bold">
+          <svg className="w-4 h-4 text-sky-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+          </svg>
+          {formData.regionPreset === 'custom' && formData.customRegionName.trim()
+            ? formData.customRegionName.trim()
+            : selectedRegion?.name ?? '—'}
+        </div>
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-white/80">
+          <svg className="w-4 h-4 text-sky-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+          </svg>
+          {formData.startDate} → {formData.endDate}
+          {formData.datePreset === 'realtime' && (
+            <span className="text-[9px] font-extrabold uppercase tracking-wider bg-sky-500/20 text-sky-300 border border-sky-400/40 rounded-lg px-1.5 py-0.5">
+              Realtime
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-white/80">
+          <svg className="w-4 h-4 text-sky-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 5.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+          </svg>
+          {selectedLabels.length} indikator: {selectedLabels.join(' · ')}
+        </div>
+      </div>
+
       {/* Submit Button */}
       <div className="pt-2">
         <button
@@ -365,7 +450,7 @@ export default function RiskForm({ onSubmit, isLoading }: RiskFormProps) {
               <svg className="w-5 h-5 text-sky-300 group-hover:rotate-12 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" />
               </svg>
-              <span>Jalankan Analisis Agentic AI →</span>
+              <span>Jalankan Analisis Agentic AI</span>
             </>
           )}
         </button>

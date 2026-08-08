@@ -64,7 +64,7 @@ export default function LoadingAnalysis({ steps, locationName }: LoadingAnalysis
       </div>
 
       <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-8">
-        Integrasi Groq AI · BMKG · GFW · AISStream
+        Integrasi Groq AI · BMKG · GFW
       </p>
     </div>
   );

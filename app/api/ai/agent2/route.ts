@@ -5,11 +5,12 @@ import type { Agent2Request, Agent2Response, RiskAnalysisResult, RiskPoint } fro
 const SYSTEM_PROMPT = `Kamu adalah AI Analis Risiko Pencemaran Laut Oceanagara bernama "Triton".
 Tugasmu adalah menganalisis data maritim mentah dan menghasilkan laporan risiko pencemaran yang akurat.
 
-Berdasarkan data yang diberikan (cuaca BMKG, aktivitas kapal GFW, posisi AIS), kamu harus:
+Berdasarkan data yang diberikan (cuaca BMKG, aktivitas kapal GFW, sumber industri terdekat), kamu harus:
 1. Mengidentifikasi titik-titik koordinat dengan risiko pencemaran tinggi
 2. Menentukan skor risiko (0-100) dan level risiko untuk setiap titik
 3. Memberikan deskripsi spesifik penyebab risiko di setiap titik
-4. Memberikan rekomendasi tindakan
+4. **Sebutkan SUMBER pencemarannya secara spesifik** — apakah dari pabrik/kilang/PLTU/smelter di dekatnya, pelabuhan, atau kapal yang melintas/berhenti (lihat daftar sumber yang diberikan). Contoh: "Terdeteksi kapal fishing + loitering 8 km dari Kilang Cilacap."
+5. Memberikan rekomendasi tindakan
 
 Output HARUS berupa JSON valid dengan struktur:
 {
@@ -23,13 +24,15 @@ Output HARUS berupa JSON valid dengan struktur:
       "riskLevel": "low|medium|high|critical",
       "riskType": "jenis pencemaran",
       "description": "penjelasan spesifik",
-      "source": "bmkg|gfw|aisstream|combined"
+      "spillRadiusKm": [perkiraan radius sebaran limbah dalam km, misal 8.5],
+      "wasteForm": "bentuk/fase limbah, misal 'cairan minyak', 'partikel padat terapung', 'limbah cair industri', 'sampah plastik padat', 'sedimen terlarut'",
+      "source": "bmkg|gfw|combined"
     }
   ],
   "overallRiskLevel": "low|medium|high|critical",
   "summary": "ringkasan analisis",
   "recommendations": ["rekomendasi 1", "rekomendasi 2"],
-  "dataSources": ["BMKG Maritim", "Global Fishing Watch", "AISStream"]
+  "dataSources": ["BMKG Maritim", "Global Fishing Watch (GFW)"]
 }
 
 Pastikan titik koordinat berada dalam bounding box yang diberikan.
@@ -37,7 +40,7 @@ Gunakan data nyata dari API untuk menentukan titik risiko.
 Jika data API terbatas, buat analisis berdasarkan pengetahuan geografis dan pola pencemaran umum di area tersebut.`;
 
 function getGroqClient() {
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY2 ?? process.env.GROQ_API_KEY1;
   if (!apiKey) return null;
   return new Groq({ apiKey });
 }
@@ -51,14 +54,6 @@ function generateMockRiskPoints(
   const latRange = bbox.north - bbox.south;
   const lonRange = bbox.east - bbox.west;
 
-  const riskTypes = [
-    { type: 'tumpahan minyak', source: 'gfw' as const },
-    { type: 'limbah industri', source: 'combined' as const },
-    { type: 'sampah plastik', source: 'aisstream' as const },
-    { type: 'limbah kapal tanker', source: 'gfw' as const },
-    { type: 'runoff pertanian', source: 'bmkg' as const },
-  ];
-
   const points: RiskPoint[] = [
     {
       lat: lat + latRange * 0.15,
@@ -67,6 +62,8 @@ function generateMockRiskPoints(
       riskLevel: 'critical',
       riskType: 'tumpahan minyak & limbah kapal',
       description: `Terdeteksi aktivitas penangkapan ikan ilegal intensif di koordinat ini. Pola pergerakan kapal menunjukkan pembuangan limbah bahan bakar secara tidak langsung. Kecepatan arus ${(Math.random() * 1.5 + 0.5).toFixed(1)} m/s berpotensi menyebarkan pencemaran ke pesisir dalam 12–18 jam.`,
+      spillRadiusKm: 18.5,
+      wasteForm: 'cairan minyak (hydrocarbon film)',
       source: 'combined',
       timestamp: new Date().toISOString(),
     },
@@ -77,6 +74,8 @@ function generateMockRiskPoints(
       riskLevel: 'high',
       riskType: 'limbah industri',
       description: `Analisis data arus BMKG menunjukkan aliran massa air dari arah kawasan industri pesisir. Kandungan sedimen abnormal dan suhu air yang lebih tinggi dari normal (+${(Math.random() * 2 + 1).toFixed(1)}°C) mengindikasikan pembuangan limbah termal dari industri.`,
+      spillRadiusKm: 9.5,
+      wasteForm: 'limbah cair industri (termal & kimia)',
       source: 'bmkg',
       timestamp: new Date().toISOString(),
     },
@@ -86,8 +85,10 @@ function generateMockRiskPoints(
       riskScore: 61,
       riskLevel: 'high',
       riskType: 'sampah plastik & limbah kapal',
-      description: `Zona ini merupakan jalur pelayaran padat dengan ${Math.floor(Math.random() * 20 + 15)} kapal terdeteksi dalam 24 jam. AIS menunjukkan beberapa kapal berhenti mendadak (loitering) yang mengindikasikan potensi pembuangan limbah padat ke laut.`,
-      source: 'aisstream',
+      description: `Zona ini merupakan jalur pelayaran padat dengan ${Math.floor(Math.random() * 20 + 15)} aktivitas kapal terdeteksi oleh GFW dalam 24 jam. Pola kapal berhenti mendadak (loitering) mengindikasikan potensi pembuangan limbah padat ke laut.`,
+      spillRadiusKm: 12.0,
+      wasteForm: 'sampah plastik padat terapung',
+      source: 'gfw',
       timestamp: new Date().toISOString(),
     },
     {
@@ -97,6 +98,8 @@ function generateMockRiskPoints(
       riskLevel: 'medium',
       riskType: 'runoff dan sedimentasi',
       description: `Curah hujan tinggi dalam 72 jam terakhir berdasarkan data BMKG berpotensi meningkatkan runoff dari daratan. Titik ini dekat muara sungai, meningkatkan risiko aliran limbah pertanian dan domestik ke perairan terbuka.`,
+      spillRadiusKm: 6.5,
+      wasteForm: 'sedimen terlarut & partikel tersuspensi',
       source: 'bmkg',
       timestamp: new Date().toISOString(),
     },
@@ -107,6 +110,8 @@ function generateMockRiskPoints(
       riskLevel: 'low',
       riskType: 'pencemaran ringan',
       description: `Aktivitas kapal rendah di zona ini. Terdapat beberapa kapal penangkap ikan skala kecil yang melintas. Kondisi cuaca cukup baik dengan gelombang ${(Math.random() * 0.5 + 0.3).toFixed(1)}m, risiko penyebaran pencemaran minimal.`,
+      spillRadiusKm: 3.0,
+      wasteForm: 'cairan sisa oli ringan',
       source: 'combined',
       timestamp: new Date().toISOString(),
     },
@@ -125,13 +130,13 @@ function generateMockRiskPoints(
       'Monitoring intensif dalam 24–48 jam ke depan mengingat kondisi arus aktif',
       'Siapkan tim respons pencemaran di pelabuhan terdekat sebagai antisipasi',
     ],
-    dataSources: ['BMKG Maritim', 'Global Fishing Watch (GFW)', 'AISStream Real-time'],
+    dataSources: ['BMKG Maritim', 'Global Fishing Watch (GFW)'],
   };
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { location, maritimeData }: Agent2Request = await req.json();
+    const { location, maritimeData, sourceContext }: Agent2Request = await req.json();
 
     if (!location || !maritimeData) {
       return NextResponse.json({ error: 'location dan maritimeData diperlukan' }, { status: 400 });
@@ -152,6 +157,22 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Real Groq call ────────────────────────────────────────────────────
+    // Keep the payload lean: llama-3.1-8b-instant on the free tier is limited
+    // to 6000 TPM — compact JSON + trimmed samples prevent 413 rate limits.
+    const bmkgForecasts = maritimeData.bmkg?.forecasts?.slice(0, 3) ?? [];
+    const gfwEvents = (maritimeData.gfw?.vesselEvents ?? []).slice(0, 10).map((e) => ({
+      type: e.type,
+      lat: e.lat,
+      lon: e.lon,
+      startTime: e.startTime,
+      endTime: e.endTime,
+      vesselName: e.vesselName,
+      vesselType: e.vesselType,
+      flag: e.flag,
+      heading: e.heading,
+      speedKnots: e.speedKnots,
+    }));
+
     const dataContext = `
 LOKASI ANALISIS:
 - Nama: ${location.regionName}
@@ -160,14 +181,14 @@ LOKASI ANALISIS:
 - Periode: ${location.startDate} s/d ${location.endDate}
 - Jenis pencemaran yang dicari: ${location.pollutionTypes.join(', ')}
 
-DATA BMKG MARITIM:
-${maritimeData.bmkg ? JSON.stringify(maritimeData.bmkg, null, 2) : 'Tidak tersedia — gunakan pengetahuan geografis'}
+DATA BMKG MARITIM (cuaca & arus terdekat):
+${bmkgForecasts.length ? JSON.stringify(bmkgForecasts) : 'Tidak tersedia — gunakan pengetahuan geografis'}
 
-DATA GLOBAL FISHING WATCH:
-${maritimeData.gfw ? JSON.stringify(maritimeData.gfw, null, 2) : 'Tidak tersedia — asumsikan aktivitas kapal normal'}
+DATA GLOBAL FISHING WATCH (maks 10 event):
+${gfwEvents.length ? JSON.stringify(gfwEvents) : 'Tidak tersedia — asumsikan aktivitas kapal normal'}
 
-DATA AISSTREAM (posisi kapal real-time):
-${maritimeData.aisstream ? JSON.stringify(maritimeData.aisstream, null, 2) : 'Tidak tersedia'}
+SUMBER PENCEMARAN POTENSIAL DI WILAYAH (pabrik/kilang/PLTU/smelter/pelabuhan/kapal):
+${sourceContext ?? 'Tidak tersedia — gunakan pengetahuan geografis'}
 
 Error saat fetch: ${maritimeData.errors.length > 0 ? maritimeData.errors.join(', ') : 'tidak ada'}
 
@@ -181,9 +202,27 @@ Pastikan semua koordinat titik risiko berada dalam bounding box yang diberikan.`
         { role: 'user', content: dataContext },
       ],
       temperature: 0.3,
-      max_tokens: 2048,
+      max_tokens: 1024,
       response_format: { type: 'json_object' },
+    }).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      // TPM/rate-limit (413/429): degrade to the deterministic mock instead of failing
+      if (/413|429|rate_limit|Request too large|TPM/i.test(message)) {
+        console.warn('[Agent2] Groq rate-limited, falling back to mock:', message.slice(0, 200));
+        return null;
+      }
+      throw err;
     });
+
+    if (!completion) {
+      const mockResult = generateMockRiskPoints(
+        location.lat,
+        location.lon,
+        location.boundingBox,
+        location.regionName
+      );
+      return NextResponse.json({ result: mockResult, degraded: true } satisfies Agent2Response & { degraded?: boolean });
+    }
 
     const rawText = completion.choices[0]?.message?.content ?? '{}';
     const result = JSON.parse(rawText) as RiskAnalysisResult;

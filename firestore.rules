@@ -9,12 +9,56 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // Maritime telemetry cache: public BMKG data.
-    // Anyone may read (used as fallback when BMKG is down);
-    // only signed-in users may write the latest snapshot.
+    // Maritime telemetry cache: public BMKG data — open read/write so the
+    // dashboard can always persist & restore the latest snapshot.
+    // Size guard prevents oversized payload abuse (1 MB Firestore doc limit).
     match /maritimeCache/{docId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if request.resource.data.size() < 1000000;
+    }
+
+    // Risk analysis history: each user can only read/manage their own records.
+    match /riskAnalyses/{docId} {
+      function signedIn() {
+        return request.auth != null;
+      }
+      function isOwner() {
+        return signedIn() && request.auth.uid == resource.data.uid;
+      }
+      // New records must belong to the creator and be well-formed.
+      function validNew() {
+        return request.auth.uid == request.resource.data.uid
+          && request.resource.data.size() < 1000000
+          && request.resource.data.uid is string
+          && request.resource.data.regionName is string
+          && request.resource.data.overallRiskLevel in ['low', 'medium', 'high', 'critical']
+          && request.resource.data.result is map;
+      }
+      allow create: if signedIn() && validNew();
+      allow read, delete: if isOwner();
+      // Owner can edit anything except transferring ownership.
+      allow update: if isOwner() && request.resource.data.uid == resource.data.uid;
+    }
+
+    // Drift prediction history (arus pencemaran): per-user, same policy as riskAnalyses.
+    match /driftPredictions/{docId} {
+      function signedIn() {
+        return request.auth != null;
+      }
+      function isOwner() {
+        return signedIn() && request.auth.uid == resource.data.uid;
+      }
+      function validNew() {
+        return request.auth.uid == request.resource.data.uid
+          && request.resource.data.size() < 1000000
+          && request.resource.data.uid is string
+          && request.resource.data.regionName is string
+          && request.resource.data.destinationLabel is string
+          && request.resource.data.result is map;
+      }
+      allow create: if signedIn() && validNew();
+      allow read, delete: if isOwner();
+      allow update: if isOwner() && request.resource.data.uid == resource.data.uid;
     }
   }
 }

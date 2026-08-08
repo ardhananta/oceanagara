@@ -225,6 +225,8 @@ export default function DashboardPenelitiPage() {
                 onClick={() => {
                   if (card.id === 'peta-risiko') {
                     router.push('/dashboard/peneliti/peta-risiko');
+                  } else if (card.id === 'prediksi-limbah') {
+                    router.push('/dashboard/peneliti/arus-pencemaran');
                   } else {
                     setSelectedFeature(card);
                   }
@@ -287,46 +289,6 @@ export default function DashboardPenelitiPage() {
         </div>
       </div>
 
-      {/* ── Lower Section ── */}
-      <section className="bg-white border-t border-zinc-100 py-16 px-6 md:px-12 lg:px-16">
-        <div className="max-w-7xl mx-auto space-y-8">
-          <div className="text-center max-w-xl mx-auto">
-            <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-400 block mb-2">
-              Pusat Informasi &amp; Navigasi
-            </span>
-            <h2 className="text-2xl font-extrabold text-[#162e52] uppercase tracking-tight">
-              Layanan Digital Oceanagara
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="p-6 bg-white border border-zinc-200 rounded-2xl space-y-3 hover:border-zinc-400 transition-colors shadow-sm">
-              <div className="w-10 h-10 rounded-xl bg-[#162e52] text-white flex items-center justify-center font-bold text-sm shadow-sm">01</div>
-              <h4 className="text-sm font-bold text-[#162e52] uppercase tracking-wider">Pemantauan Satelit AIS</h4>
-              <p className="text-xs text-zinc-600 leading-relaxed">
-                Integrasi data pelacakan kapal real-time berbasis stasiun radio maritim nasional.
-              </p>
-            </div>
-
-            <div className="p-6 bg-white border border-zinc-200 rounded-2xl space-y-3 hover:border-zinc-400 transition-colors shadow-sm">
-              <div className="w-10 h-10 rounded-xl bg-[#162e52] text-white flex items-center justify-center font-bold text-sm shadow-sm">02</div>
-              <h4 className="text-sm font-bold text-[#162e52] uppercase tracking-wider">Mutu Tangkapan Ikan</h4>
-              <p className="text-xs text-zinc-600 leading-relaxed">
-                Analisis indikator kelautan harian untuk memastikan kualitas komoditas laut tetap terjaga.
-              </p>
-            </div>
-
-            <div className="p-6 bg-white border border-zinc-200 rounded-2xl space-y-3 hover:border-zinc-400 transition-colors shadow-sm">
-              <div className="w-10 h-10 rounded-xl bg-[#162e52] text-white flex items-center justify-center font-bold text-sm shadow-sm">03</div>
-              <h4 className="text-sm font-bold text-[#162e52] uppercase tracking-wider">Keamanan &amp; Navigasi</h4>
-              <p className="text-xs text-zinc-600 leading-relaxed">
-                Peringatan dini cuaca ekstrem dan jalur pelayaran aman untuk seluruh pengguna laut.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ── Feature Detail Modal ── */}
       {selectedFeature && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
@@ -335,7 +297,9 @@ export default function DashboardPenelitiPage() {
               onClick={() => setSelectedFeature(null)}
               className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-900 p-2 rounded-lg hover:bg-zinc-100 transition-colors"
             >
-              ✕
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
             </button>
 
             <span className="inline-block px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-700 bg-zinc-100 border border-zinc-200 rounded">
@@ -354,9 +318,23 @@ export default function DashboardPenelitiPage() {
               {selectedFeature?.id === 'peta-risiko' && (
                 <button
                   onClick={() => router.push('/dashboard/peneliti/peta-risiko')}
-                  className="px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold uppercase tracking-wider rounded transition-all duration-200 shadow-sm"
+                  className="px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold uppercase tracking-wider rounded transition-all duration-200 shadow-sm flex items-center gap-2"
                 >
-                  Buka Fitur →
+                  <span>Buka Fitur</span>
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                  </svg>
+                </button>
+              )}
+              {selectedFeature?.id === 'prediksi-limbah' && (
+                <button
+                  onClick={() => router.push('/dashboard/peneliti/arus-pencemaran')}
+                  className="px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold uppercase tracking-wider rounded transition-all duration-200 shadow-sm flex items-center gap-2"
+                >
+                  <span>Buka Fitur</span>
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                  </svg>
                 </button>
               )}
               <button

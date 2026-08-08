@@ -42,7 +42,7 @@ Jika informasi belum cukup, jangan sertakan blok <location_data>. Tetap natural 
 
 // Initialize Groq client — safe to construct even without key (will fail at API call time)
 function getGroqClient() {
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY1 ?? process.env.GROQ_API_KEY2;
   if (!apiKey) return null;
   return new Groq({ apiKey });
 }

@@ -111,7 +111,7 @@ export default function KondisiAirLautBlogPage() {
           'nelayan-modern': '/dashboard/peneliti',
           peneliti: '/dashboard/peneliti',
         };
-        router.push(paths[uProfile.role] || '/dashboard/masyarakat');
+        router.push(paths[uProfile.role ?? ''] || '/dashboard/masyarakat');
         return;
       }
       setLoading(false);

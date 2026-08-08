@@ -258,8 +258,11 @@ export default function WaveMap() {
               </p>
             )}
             {mapViewMode === 'wind' && windIsSynthetic && (
-              <p className="text-[9px] text-amber-600 font-bold pt-1 border-t border-zinc-100">
-                ⚠ Animasi memakai data sintetis
+              <p className="text-[9px] text-amber-600 font-bold pt-1 border-t border-zinc-100 flex items-center gap-1">
+                <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+                Animasi memakai data sintetis
               </p>
             )}
           </div>
@@ -294,7 +297,9 @@ export default function WaveMap() {
                         onClick={() => setSelectedPoint(null)}
                         className="text-zinc-400 hover:text-zinc-800 p-1"
                       >
-                        ✕
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
                       </button>
                     </div>
                   </div>

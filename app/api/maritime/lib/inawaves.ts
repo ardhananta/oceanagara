@@ -80,14 +80,25 @@ export function isoToBaserun(iso: string): string | null {
  * Candidate INAWAVES baseruns, newest first:
  * 1. inawaves (or inaflows) runs listed by the modelrun endpoint
  * 2. today / yesterday / day-before 00:00 UTC (INAWAVES runs daily at 00:00Z)
+ *
+ * Hasil di-cache 10 menit — endpoint `modelrun` lambat dan dipanggil untuk
+ * hampir setiap titik arus yang belum ada di cache.
  */
+let baserunCacheValue: string[] | null = null;
+let baserunCacheFetchedAt = 0;
+
 export async function getBaserunCandidates(): Promise<string[]> {
+  if (baserunCacheValue && Date.now() - baserunCacheFetchedAt < 10 * 60 * 1000) {
+    return baserunCacheValue;
+  }
+
   const candidates: string[] = [];
 
   try {
     const res = await fetch('https://maritim.bmkg.go.id/pusmar/api23/modelrun', {
       headers: { Accept: 'application/json, text/plain' },
       cache: 'no-store',
+      signal: AbortSignal.timeout(10_000),
     });
     if (res.ok) {
       const parsed = parseBmkgStringJson(await res.text());
@@ -112,6 +123,8 @@ export async function getBaserunCandidates(): Promise<string[]> {
     if (!candidates.includes(b)) candidates.push(b);
   }
 
+  baserunCacheValue = candidates;
+  baserunCacheFetchedAt = Date.now();
   return candidates;
 }
 
