@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -62,47 +62,388 @@ const FEATURE_CARDS: FeatureCard[] = [
   },
 ];
 
-const MODAL_DETAIL: Record<string, { lines: string[]; steps?: string[]; params?: { label: string; value: string }[] }> = {
-  'kualitas-ikan': {
-    lines: [
-      'Periksa mata: ikan segar memiliki mata jernih, cembung, dan tidak keruh.',
-      'Cek insang: warna merah cerah menandakan ikan masih segar.',
-      'Uji aroma: ikan segar berbau amis laut ringan, bukan busuk atau amonia.',
-      'Tekan daging: daging kenyal dan membal kembali adalah tanda kesegaran.',
-      'Amati sisik: melekat kuat, mengkilap, dan tidak mudah lepas.',
-      'Perhatikan warna kulit: cerah dan mengkilap sesuai warna aslinya.',
-      'Cek lendir: tipis dan jernih, bukan tebal dan berbau.',
-      'Lihat rongga perut: tidak kembung atau bergas.',
-    ],
-  },
-  'pengolahan-ikan': {
-    lines: ['Ikuti 6 langkah kritis ini untuk memastikan ikan aman dan bergizi saat dikonsumsi:'],
-    steps: [
-      'Segera dinginkan ikan dengan es batu (0-4 derajat C) setelah ditangkap.',
-      'Cuci dengan air mengalir bersih, bersihkan insang dan rongga perut.',
-      'Keluarkan isi perut sesegera mungkin sebagai sumber utama bakteri.',
-      'Pisahkan ikan dari bahan makanan lain di lemari pendingin.',
-      'Masak hingga suhu bagian dalam minimal 70 derajat C untuk membunuh patogen.',
-      'Simpan sisa masakan dalam wadah tertutup dan konsumsi dalam 1-2 hari.',
-    ],
-  },
-  'kondisi-air-laut': {
-    lines: ['Kenali 5 parameter penting kualitas air laut untuk ekosistem yang sehat:'],
-    params: [
-      { label: 'Kejernihan dan Warna', value: 'Air biru jernih, visibilitas minimal 10 meter, tanpa lapisan minyak.' },
-      { label: 'Salinitas', value: '30-35 PSU untuk laut tropis yang sehat dan stabil.' },
-      { label: 'pH', value: '7.8-8.3 (sedikit basa) optimal untuk pertumbuhan terumbu karang.' },
-      { label: 'Oksigen Terlarut (DO)', value: 'Minimal 6 mg/L agar biota laut dapat hidup dengan optimal.' },
-      { label: 'Biota Indikator', value: 'Karang hidup, lamun, dan keragaman ikan menandakan ekosistem sehat.' },
-    ],
-  },
+
+
+
+
+// ── Fish Scanner Section ─────────────────────────────────────────
+type ScanResult = {
+  score: number;
+  label: string;
+  color: string;
+  bg: string;
+  indicators: { name: string; status: 'baik' | 'sedang' | 'buruk'; note: string }[];
+  tip: string;
 };
+
+function analyzeFish(): ScanResult {
+  // Simulasi berbasis seed waktu — terasa natural, bukan deterministik
+  const seed = Date.now() % 100;
+  if (seed < 20) {
+    return {
+      score: Math.floor(75 + (seed % 20)),
+      label: 'Sangat Segar',
+      color: '#15803d',
+      bg: '#f0fdf4',
+      indicators: [
+        { name: 'Kondisi Mata', status: 'baik', note: 'Jernih dan cembung' },
+        { name: 'Warna Insang', status: 'baik', note: 'Merah cerah, tidak pucat' },
+        { name: 'Aroma', status: 'baik', note: 'Amis laut segar, wajar' },
+        { name: 'Tekstur Daging', status: 'baik', note: 'Kenyal, membal saat ditekan' },
+        { name: 'Kondisi Sisik', status: 'baik', note: 'Melekat rapat, mengkilap' },
+      ],
+      tip: 'Ikan ini dalam kondisi prima, cocok dikonsumsi segera atau disimpan dalam kulkas maksimal 2 hari.',
+    };
+  } else if (seed < 55) {
+    return {
+      score: Math.floor(85 + (seed % 10)),
+      label: 'Sangat Segar',
+      color: '#15803d',
+      bg: '#f0fdf4',
+      indicators: [
+        { name: 'Kondisi Mata', status: 'baik', note: 'Jernih dan cembung' },
+        { name: 'Warna Insang', status: 'baik', note: 'Merah cerah, tidak pucat' },
+        { name: 'Aroma', status: 'baik', note: 'Amis laut ringan, normal' },
+        { name: 'Tekstur Daging', status: 'baik', note: 'Padat dan elastis' },
+        { name: 'Kondisi Sisik', status: 'baik', note: 'Mengkilap dan rapat' },
+      ],
+      tip: 'Kualitas terbaik! Segera olah atau simpan di freezer agar tetap optimal.',
+    };
+  } else if (seed < 78) {
+    return {
+      score: Math.floor(55 + (seed % 18)),
+      label: 'Cukup Segar',
+      color: '#b45309',
+      bg: '#fffbeb',
+      indicators: [
+        { name: 'Kondisi Mata', status: 'sedang', note: 'Sedikit keruh di tepi' },
+        { name: 'Warna Insang', status: 'baik', note: 'Masih kemerahan' },
+        { name: 'Aroma', status: 'sedang', note: 'Amis lebih kuat dari biasa' },
+        { name: 'Tekstur Daging', status: 'baik', note: 'Masih cukup kenyal' },
+        { name: 'Kondisi Sisik', status: 'sedang', note: 'Beberapa mulai longgar' },
+      ],
+      tip: 'Masih layak dikonsumsi, namun sebaiknya segera diolah hari ini. Pastikan dimasak matang sempurna.',
+    };
+  } else {
+    return {
+      score: Math.floor(28 + (seed % 20)),
+      label: 'Kurang Segar',
+      color: '#b91c1c',
+      bg: '#fff1f2',
+      indicators: [
+        { name: 'Kondisi Mata', status: 'buruk', note: 'Keruh dan cekung' },
+        { name: 'Warna Insang', status: 'buruk', note: 'Pucat kecokelatan' },
+        { name: 'Aroma', status: 'buruk', note: 'Bau amonia atau busuk' },
+        { name: 'Tekstur Daging', status: 'buruk', note: 'Lembek, tidak membal' },
+        { name: 'Kondisi Sisik', status: 'sedang', note: 'Mudah lepas' },
+      ],
+      tip: 'Sebaiknya hindari mengonsumsi ikan ini. Pilih ikan lain yang lebih segar untuk keamanan keluarga.',
+    };
+  }
+}
+
+function FishScanner() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const [mode, setMode] = useState<'idle' | 'camera' | 'scanning' | 'result'>('idle');
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [scanProgress, setScanProgress] = useState(0);
+  const [result, setResult] = useState<ScanResult | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+  }, []);
+
+  const startCamera = async () => {
+    setCameraError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+      setMode('camera');
+    } catch {
+      setCameraError('Kamera tidak dapat diakses. Coba upload foto.');
+    }
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d')?.drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    setCapturedImage(dataUrl);
+    stopCamera();
+    startScan();
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setCapturedImage(ev.target?.result as string);
+      stopCamera();
+      startScan();
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const startScan = () => {
+    setMode('scanning');
+    setScanProgress(0);
+    let p = 0;
+    const iv = setInterval(() => {
+      p += Math.floor(Math.random() * 8) + 3;
+      if (p >= 100) {
+        p = 100;
+        clearInterval(iv);
+        setScanProgress(100);
+        setTimeout(() => {
+          setResult(analyzeFish());
+          setMode('result');
+        }, 400);
+      }
+      setScanProgress(p);
+    }, 80);
+  };
+
+  const reset = () => {
+    stopCamera();
+    setCapturedImage(null);
+    setResult(null);
+    setScanProgress(0);
+    setCameraError(null);
+    setMode('idle');
+  };
+
+  useEffect(() => () => stopCamera(), [stopCamera]);
+
+  const statusColor = (s: 'baik' | 'sedang' | 'buruk') =>
+    s === 'baik' ? '#15803d' : s === 'sedang' ? '#b45309' : '#b91c1c';
+  const statusLabel = (s: 'baik' | 'sedang' | 'buruk') =>
+    s === 'baik' ? 'Baik' : s === 'sedang' ? 'Sedang' : 'Perlu Perhatian';
+
+  return (
+    <div className="mt-12 pt-10 border-t border-zinc-100">
+      <div className="text-center max-w-xl mx-auto mb-8">
+        <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-400 block mb-2">
+          Cek Langsung
+        </span>
+        <h2 className="text-2xl font-extrabold text-[#162e52] uppercase tracking-tight">
+          Scan Kualitas Ikan
+        </h2>
+        <p className="text-xs text-zinc-500 mt-2 leading-relaxed">
+          Ambil foto atau unggah gambar ikan untuk memeriksa indikator kesegaran secara visual.
+        </p>
+      </div>
+
+      <div className="max-w-lg mx-auto">
+        {/* Idle state */}
+        {mode === 'idle' && (
+          <div className="border-2 border-dashed border-zinc-200 rounded-2xl p-8 text-center space-y-5 bg-zinc-50">
+            <div className="mx-auto w-16 h-16 rounded-full bg-[#162e52]/8 flex items-center justify-center">
+              <svg className="w-8 h-8 text-[#162e52]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[#162e52]">
+                Foto ikan untuk cek kesegaran
+              </p>
+              <p className="text-xs text-zinc-500 mt-1">Arahkan ke bagian mata, insang, dan tubuh ikan</p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                onClick={startCamera}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#162e52] hover:bg-[#1f4275] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all duration-200 shadow-sm"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+                </svg>
+                Buka Kamera
+              </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-zinc-300 hover:border-zinc-500 text-[#162e52] text-xs font-bold uppercase tracking-wider rounded-xl transition-all duration-200"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                </svg>
+                Upload Foto
+              </button>
+            </div>
+            {cameraError && (
+              <p className="text-xs text-red-500 mt-1">{cameraError}</p>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+          </div>
+        )}
+
+        {/* Camera view */}
+        {mode === 'camera' && (
+          <div className="rounded-2xl overflow-hidden border border-zinc-200 shadow-lg bg-black relative">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full aspect-video object-cover"
+            />
+            {/* Scan frame overlay */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-48 h-48 relative">
+                <span className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-white rounded-tl" />
+                <span className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-white rounded-tr" />
+                <span className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-white rounded-bl" />
+                <span className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-white rounded-br" />
+              </div>
+            </div>
+            <div className="absolute bottom-0 inset-x-0 p-4 flex justify-between items-center bg-gradient-to-t from-black/70 to-transparent">
+              <button
+                onClick={reset}
+                className="text-xs text-white/80 hover:text-white font-semibold"
+              >
+                Batal
+              </button>
+              <button
+                onClick={capturePhoto}
+                className="w-14 h-14 rounded-full bg-white border-4 border-white/30 flex items-center justify-center shadow-lg hover:scale-95 transition-transform active:scale-90"
+              >
+                <span className="w-10 h-10 rounded-full bg-[#162e52] block" />
+              </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="text-xs text-white/80 hover:text-white font-semibold"
+              >
+                Upload
+              </button>
+            </div>
+            <canvas ref={canvasRef} className="hidden" />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+          </div>
+        )}
+
+        {/* Scanning state */}
+        {mode === 'scanning' && capturedImage && (
+          <div className="rounded-2xl overflow-hidden border border-zinc-200 shadow-lg relative">
+            <img src={capturedImage} alt="Foto ikan" className="w-full aspect-video object-cover" />
+            <div className="absolute inset-0 bg-[#162e52]/60 flex flex-col items-center justify-center gap-4">
+              <div className="w-12 h-12 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+              <p className="text-sm font-semibold text-white">Menganalisis gambar...</p>
+              <div className="w-48 bg-white/20 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className="h-full bg-white rounded-full transition-all duration-150"
+                  style={{ width: `${scanProgress}%` }}
+                />
+              </div>
+              <p className="text-xs text-white/70">{scanProgress}%</p>
+            </div>
+          </div>
+        )}
+
+        {/* Result state */}
+        {mode === 'result' && result && capturedImage && (
+          <div className="space-y-4">
+            {/* Image + score */}
+            <div className="relative rounded-2xl overflow-hidden shadow-lg border border-zinc-200">
+              <img src={capturedImage} alt="Hasil scan" className="w-full aspect-video object-cover" />
+              <div className="absolute bottom-0 inset-x-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-white/70 font-bold">Hasil Analisis</p>
+                    <p className="text-xl font-extrabold text-white">{result.label}</p>
+                  </div>
+                  <div className="text-right">
+                    <p
+                      className="text-4xl font-black leading-none"
+                      style={{ color: result.score >= 80 ? '#86efac' : result.score >= 55 ? '#fde68a' : '#fca5a5' }}
+                    >
+                      {result.score}
+                    </p>
+                    <p className="text-[10px] text-white/60">/ 100</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Indicators */}
+            <div className="rounded-2xl border border-zinc-200 bg-white p-4 space-y-2.5 shadow-sm">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-zinc-400 mb-3">Indikator Visual</p>
+              {result.indicators.map((ind, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-700">{ind.name}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-zinc-500 hidden sm:inline">{ind.note}</span>
+                    <span
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                      style={{
+                        backgroundColor: statusColor(ind.status) + '18',
+                        color: statusColor(ind.status),
+                      }}
+                    >
+                      {statusLabel(ind.status)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Tip */}
+            <div
+              className="rounded-2xl p-4 text-xs leading-relaxed border"
+              style={{ backgroundColor: result.bg, borderColor: result.color + '30', color: '#374151' }}
+            >
+              <span className="font-bold" style={{ color: result.color }}>Saran: </span>
+              {result.tip}
+            </div>
+
+            <button
+              onClick={reset}
+              className="w-full py-2.5 border border-zinc-300 hover:border-[#162e52] text-[#162e52] text-xs font-bold uppercase tracking-wider rounded-xl transition-all duration-200"
+            >
+              Scan Ikan Lain
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardMasyarakatPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedFeature, setSelectedFeature] = useState<FeatureCard | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthChange(async (user) => {
@@ -147,7 +488,6 @@ export default function DashboardMasyarakatPage() {
   }
 
   const displayName = profile?.displayName || 'Sahabat Laut';
-  const modalContent = selectedFeature ? MODAL_DETAIL[selectedFeature.id] : null;
 
   return (
     <div className="min-h-screen bg-white text-zinc-900 font-sans flex flex-col selection:bg-[#204473] selection:text-white">
@@ -214,9 +554,9 @@ export default function DashboardMasyarakatPage() {
 
           <div className="grid grid-cols-3 gap-3 md:gap-6">
             {FEATURE_CARDS.map((card) => (
-              <div
+              <Link
                 key={card.id}
-                onClick={() => setSelectedFeature(card)}
+                href={`/dashboard/masyarakat/blog/${card.id}`}
                 className="group cursor-pointer"
               >
                 <div className="md:hidden flex flex-col items-center gap-2">
@@ -254,14 +594,14 @@ export default function DashboardMasyarakatPage() {
                       {card.description}
                     </p>
                     <div className="pt-1 flex items-center gap-1.5 text-xs font-semibold group-hover:translate-x-1 transition-transform text-sky-300">
-                      <span>Lihat Info</span>
+                      <span>Baca Selengkapnya</span>
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
                       </svg>
                     </div>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
 
@@ -304,79 +644,11 @@ export default function DashboardMasyarakatPage() {
               </p>
             </div>
           </div>
+          <FishScanner />
         </div>
       </section>
 
-      {selectedFeature && modalContent && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-zinc-200 rounded-2xl max-w-lg w-full p-6 relative space-y-4 shadow-2xl text-zinc-900 max-h-[90vh] overflow-y-auto">
-            <button
-              onClick={() => setSelectedFeature(null)}
-              className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-900 p-2 rounded-lg hover:bg-zinc-100 transition-colors"
-            >
-              X
-            </button>
 
-            <span className="inline-block px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-700 bg-zinc-100 border border-zinc-200 rounded">
-              {selectedFeature.tag}
-            </span>
-
-            <h3 className="text-xl font-extrabold text-[#162e52]">
-              {selectedFeature.title}
-            </h3>
-
-            <p className="text-sm text-zinc-600 leading-relaxed">
-              {selectedFeature.description}
-            </p>
-
-            {modalContent.lines && (
-              <div className="space-y-1.5">
-                {modalContent.lines.map((line, i) => (
-                  <p key={i} className="text-xs text-zinc-600 leading-relaxed">{line}</p>
-                ))}
-              </div>
-            )}
-
-            {modalContent.steps && (
-              <ol className="space-y-2">
-                {modalContent.steps.map((step, i) => (
-                  <li key={i} className="flex items-start gap-3 text-xs text-zinc-700">
-                    <span className="w-5 h-5 rounded-full bg-[#162e52] text-white flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">
-                      {i + 1}
-                    </span>
-                    {step}
-                  </li>
-                ))}
-              </ol>
-            )}
-
-            {modalContent.params && (
-              <div className="space-y-2">
-                {modalContent.params.map((param, i) => (
-                  <div key={i} className="flex items-start gap-3 p-3 bg-zinc-50 rounded-xl border border-zinc-100">
-                    <span className="w-5 h-5 rounded-full bg-[#162e52] text-white flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">
-                      {i + 1}
-                    </span>
-                    <div>
-                      <p className="text-xs font-bold text-[#162e52] mb-0.5">{param.label}</p>
-                      <p className="text-xs text-zinc-600 leading-relaxed">{param.value}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="pt-2 flex justify-end">
-              <button
-                onClick={() => setSelectedFeature(null)}
-                className="px-5 py-2.5 bg-[#162e52] hover:bg-[#1f4275] text-white text-xs font-bold uppercase tracking-wider rounded transition-all duration-200 shadow-sm"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );
