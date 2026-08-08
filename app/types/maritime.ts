@@ -77,7 +77,6 @@ export interface Agent2Request {
   /** Optional: nearby pollution sources / port / vessel context for attribution */
   sourceContext?: string;
 }
-
 export interface Agent2Response {
   result: RiskAnalysisResult;
 }
@@ -129,14 +128,206 @@ export interface GfwData {
   source: 'gfw';
   vesselEvents: GfwVesselEvent[];
   totalEvents: number;
+  /** true = data simulasi (API GFW tidak terjangkau / circuit breaker) */
+  isMock?: boolean;
 }
 
 /** Bundle of all fetched maritime data, passed to Agent 2 */
 export interface MaritimeDataBundle {
   bmkg: BmkgWeatherData | null;
   gfw: GfwData | null;
+  satellite: SatelliteAnalysis | null;
+  /** Deteksi sampah padat terapung (Sentinel-2 + indeks FDI) */
+  solidWaste: SatelliteSolidWasteAnalysis | null;
   fetchedAt: string;
   errors: string[];
+}
+
+// ─── Analisis Citra Satelit (NASA GIBS) ───────────────────────────────────────
+
+/** Indikasi anomali yang terdeteksi pada satu layer citra satelit. */
+export interface SatelliteAnomaly {
+  /** bloom = ledakan klorofil (tanda eutrofikasi), slick = area gelap di laut (kandidat minyak), thermal = zona suhu tinggi, turbidity = plume sedimen/kekeruhan di muara, cloud = tutupan awan */
+  kind: 'bloom' | 'slick' | 'thermal' | 'turbidity' | 'cloud';
+  label: string;
+  /** Fraksi piksel anomali terhadap total piksel (0-1) */
+  fraction: number;
+  centerLat: number;
+  centerLon: number;
+  /** Perkiraan luas area anomali (km²) */
+  areaKm2: number;
+  note: string;
+  /** Estimasi pH permukaan laut di area anomali (heuristik palet) */
+  ph?: number;
+  /** Estimasi konsentrasi klorofil-a (mg/m³) — dari palet GIBS */
+  chl?: number;
+  /** Estimasi suhu permukaan laut (°C) — dari palet GIBS */
+  sst?: number;
+}
+
+/** Estimasi pH permukaan laut untuk satu layer (heuristik palet warna). */
+export interface SatellitePhEstimate {
+  min: number;
+  max: number;
+  avg: number;
+  /** Fraksi piksel asam (pH < 7.5) */
+  acidFraction: number;
+  /** Fraksi piksel basa (pH > 8.4) */
+  alkalineFraction: number;
+}
+
+/** Hasil analisis satu layer citra satelit GIBS. */
+export interface SatelliteLayerAnalysis {
+  layer: string;
+  label: string;
+  /** Tanggal citra yang benar-benar dipakai (setelah fallback) */
+  imageryDate: string;
+  /** Persentase piksel valid (tidak transparan) */
+  coveragePct: number;
+  /** Persentase piksel yang tampak awan (hanya TrueColor) */
+  cloudPct?: number;
+  /** URL WMS (EPSG:3857) untuk overlay di peta */
+  wmsUrl: string;
+  anomalies: SatelliteAnomaly[];
+  /** Estimasi pH permukaan laut (heuristik palet warna) */
+  ph?: SatellitePhEstimate;
+  /** Nilai median klorofil-a (mg/m³) — hanya layer klorofil */
+  medianChl?: number;
+  /** Nilai median suhu permukaan (°C) — hanya layer SST */
+  medianSst?: number;
+}
+
+/** Hasil analisis citra satelit untuk deteksi indikasi pencemaran. */
+export interface SatelliteAnalysis {
+  source: 'satelit';
+  layers: SatelliteLayerAnalysis[];
+  summary: string;
+  fetchedAt: string;
+  /** Estimasi berbasis palet warna — bukan pengukuran ilmiah */
+  disclaimer: string;
+}
+
+// ─── Deteksi Sampah Padat Terapung (Sentinel-2, indeks FDI) ───────────────────
+
+/** Kandidat sampah padat terapung yang lolos ambang kepercayaan (≥ 0.7). */
+export interface SatelliteWasteCandidate {
+  lat: number;
+  lon: number;
+  /** Perkiraan luas area kandidat (m²) */
+  areaM2: number;
+  /** Skor kepercayaan 0-1 — hanya kandidat ≥ 0.7 yang dilaporkan */
+  confidence: number;
+  /** Tanggal citra (jendela mundur 1 minggu) yang ikut mengonfirmasi kandidat */
+  observedDates: string[];
+  /** Jarak ke pantai terdekat (km) */
+  coastKm: number;
+}
+
+/** Hasil deteksi sampah padat terapung via Sentinel-2 (indeks FDI, Biermann et al. 2020). */
+export interface SatelliteSolidWasteAnalysis {
+  source: 'sentinel-2';
+  /** Tanggal citra yang dianalisis (maks 3, terbaik per tanggal) */
+  dates: string[];
+  /** Persentase area laut bersih (tanpa awan) yang dianalisis — mean semua tanggal */
+  coveragePct: number;
+  candidates: SatelliteWasteCandidate[];
+  summary: string;
+  fetchedAt: string;
+  disclaimer: string;
+}
+
+// ─── Zona Tangkap Ikan (klorofil + SST + spesies + arah gerak) ────────────────
+
+/** Zona penangkapan ikan yang direkomendasikan (aman dari kontaminasi). */
+export interface FishingZone {
+  lat: number;
+  lon: number;
+  /** Perkiraan luas zona (km²) */
+  areaKm2: number;
+  /** Skor kesesuaian habitat 0-1 (klorofil × suhu) */
+  score: number;
+  /** Spesies ikan yang berpotensi ada (jendela suhu & klorofil) */
+  species: string[];
+  /** Suhu permukaan rata-rata zona (°C) */
+  meanSst: number;
+  /** Klorofil-a rata-rata zona (mg/m³) */
+  meanChl: number;
+  /** Kecepatan arus laut (m/s) dari BMKG */
+  currentSpeed?: number;
+  /** Arah arus laut (°) dari BMKG */
+  currentDirection?: number;
+  /** Arah pergerakan kawanan ikan (°, 0=N) — dominan arus/gradien klorofil */
+  movementDeg?: number;
+  /** Label arah pergerakan kawanan (bahasa Indonesia) */
+  movementLabel: string;
+  /** Jarak ke pantai terdekat (km) */
+  coastKm: number;
+  /** Jumlah kapal penangkap (GFW fishing/loitering) dalam radius 30 km dari zona */
+  nearbyVessels?: number;
+  /** Heading dominan kapal di sekitar zona (°, 0=N) — arah migrasi ikan komersial */
+  vesselHeading?: number;
+  /** Catatan peringatan (mis. bloom ekstrem di dekat zona) */
+  flagged?: string;
+}
+
+/** Hasil rekomendasi zona tangkap ikan berbasis citra satelit. */
+export interface FishingZoneAnalysis {
+  source: 'zona-tangkap';
+  /** Tanggal citra yang dipakai (klorofil/SST) */
+  date: string;
+  zones: FishingZone[];
+  /** Jumlah titik kontaminasi yang berhasil dihindari */
+  avoidedCount: number;
+  /** Kandidat sampah padat terdekat yang membuat zona ditolak (informasi) */
+  rejectedZones: number;
+  summary: string;
+  fetchedAt: string;
+  disclaimer: string;
+  /** Aktivitas kapal penangkap GFW di wilayah (hotspot konsentrasi kapal) */
+  gfw?: FishingGfwActivity | null;
+  /** Hasil analisis Agentic AI (rekomendasi, arah gerak, saran GFW) */
+  aiAnalysis?: FishingAiAnalysis | null;
+}
+
+/** Ringkasan aktivitas kapal penangkap (Global Fishing Watch) di bbox. */
+export interface FishingGfwActivity {
+  /** Total event kapal terdeteksi (semua jenis) */
+  totalEvents: number;
+  /** Event menangkap ikan (fishing) */
+  fishingEvents: number;
+  /** Event berhenti/melayang (loitering — indikasi penangkapan) */
+  loiteringEvents: number;
+  /** true = data simulasi karena API GFW tidak terjangkau */
+  isMock: boolean;
+  /** Hotspot konsentrasi kapal (klaster event berdekatan) */
+  hotspots: Array<{
+    lat: number;
+    lon: number;
+    /** Jumlah event kapal dalam klaster */
+    count: number;
+    /** Heading dominan kapal dalam klaster (°, 0=N) — arah migrasi ikan */
+    headingDeg?: number;
+  }>;
+  /** Periode data (mulai s/d akhir) */
+  period: string;
+}
+
+/** Hasil analisis Agentic AI untuk zona tangkap ikan. */
+export interface FishingAiAnalysis {
+  /** Zona terbaik yang direkomendasikan AI (indeks ke zones) */
+  recommendedZoneIndex?: number;
+  /** Ringkasan rekomendasi zona terbaik */
+  recommendation: string;
+  /** Analisis arah pergerakan kawanan ikan (menuju mana & alasannya) */
+  movementAnalysis: string;
+  /** Saran berbasis aktivitas kapal penangkap GFW (migrasi ikan komersial) */
+  gfwSuggestion: string;
+  /** Peringatan risiko (mis. HAB, kontaminasi terdekat, cuaca) */
+  risks: string[];
+  /** Rekomendasi tindakan */
+  recommendations: string[];
+  /** true = analisis degradasi (AI tidak terjangkau, pakai heuristik) */
+  degraded?: boolean;
 }
 
 // ── Arus Pencemaran (prediksi penyebaran limbah berbasis arus) ────────────────

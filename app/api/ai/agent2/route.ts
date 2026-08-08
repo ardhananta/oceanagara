@@ -173,6 +173,47 @@ export async function POST(req: NextRequest) {
       speedKnots: e.speedKnots,
     }));
 
+    // Compact satellite summary (anomalies only) to respect Groq token limits
+    const satellite = maritimeData.satellite?.layers?.length
+      ? {
+          layers: maritimeData.satellite.layers.map((l) => ({
+            label: l.label,
+            imageryDate: l.imageryDate,
+            coveragePct: l.coveragePct,
+            ph: l.ph,
+            medianChl: l.medianChl,
+            medianSst: l.medianSst,
+            anomalies: l.anomalies
+              .filter((a) => a.kind !== 'cloud')
+              .map((a) => ({
+                kind: a.kind,
+                label: a.label,
+                areaKm2: a.areaKm2,
+                centerLat: +a.centerLat.toFixed(3),
+                centerLon: +a.centerLon.toFixed(3),
+                ph: a.ph,
+                chl: a.chl,
+                sst: a.sst,
+              })),
+          })),
+        }
+      : null;
+
+    // Compact Sentinel-2 solid waste candidates (confidence ≥ 0.7 only)
+    const solidWaste = maritimeData.solidWaste?.candidates?.length
+      ? {
+          source: 'Sentinel-2 (FDI, Biermann et al. 2020)',
+          dates: maritimeData.solidWaste.dates,
+          candidates: maritimeData.solidWaste.candidates.map((c) => ({
+            lat: c.lat,
+            lon: c.lon,
+            areaM2: c.areaM2,
+            confidence: c.confidence,
+            observedDates: c.observedDates,
+          })),
+        }
+      : null;
+
     const dataContext = `
 LOKASI ANALISIS:
 - Nama: ${location.regionName}
@@ -187,12 +228,19 @@ ${bmkgForecasts.length ? JSON.stringify(bmkgForecasts) : 'Tidak tersedia — gun
 DATA GLOBAL FISHING WATCH (maks 10 event):
 ${gfwEvents.length ? JSON.stringify(gfwEvents) : 'Tidak tersedia — asumsikan aktivitas kapal normal'}
 
+DATA CITRA SATELIT NASA GIBS (analisis piksel berbasis palet warna):
+${satellite ? JSON.stringify(satellite) : 'Tidak tersedia — gunakan pengetahuan geografis'}
+
+DATA SENTINEL-2 SAMPAH PADAT TERAPUNG (indeks FDI, kepercayaan ≥ 70%):
+${solidWaste ? JSON.stringify(solidWaste) : 'Tidak tersedia'}
+
 SUMBER PENCEMARAN POTENSIAL DI WILAYAH (pabrik/kilang/PLTU/smelter/pelabuhan/kapal):
 ${sourceContext ?? 'Tidak tersedia — gunakan pengetahuan geografis'}
 
 Error saat fetch: ${maritimeData.errors.length > 0 ? maritimeData.errors.join(', ') : 'tidak ada'}
 
 Analisis data di atas dan hasilkan laporan risiko pencemaran dalam format JSON yang diminta.
+**PRIORITASKAN data citra satelit**: setiap anomali satelit (bloom/slick/thermal/turbidity) memiliki koordinat centroid (centerLat/centerLon) yang sudah terverifikasi dari citra — jadikan koordinat tersebut sebagai titik risiko (atau titik risiko yang sangat dekat), jangan asal pilih koordinat lain. Kandidat sampah padat Sentinel-2 (candidates dengan lat/lon dan confidence) juga wajib dijadikan titik risiko "Sampah padat terapung" — ini deteksi paling akurat yang tersedia. Sertakan nilai estimasi (klorofil mg/m³, suhu °C, pH, kepercayaan %) dan luas area pada description. Gunakan data satelit sebagai bukti utama; BMKG/GFW sebagai pendukung.
 Pastikan semua koordinat titik risiko berada dalam bounding box yang diberikan.`;
 
     const completion = await groq.chat.completions.create({

@@ -518,7 +518,7 @@ export default function WaveMap() {
           <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-1 text-xs text-zinc-600">
             <p className="font-bold text-[#162e52]">Sumber Resmi BMKG Pusmar API23</p>
             <p className="text-[11px] text-zinc-500 leading-relaxed">
-              Seluruh data ditarik 100% dari API BMKG (gelombang: tinggi, periode rata-rata &amp; swell; angin: kecepatan, arah &amp; medan vektor). Periode &ge; {LONG_PERIOD_SWELL_S}s menandakan swell panjang berisiko tinggi. Data diperbarui otomatis setiap 5 menit.
+              Seluruh data ditarik 100% dari API BMKG (gelombang: tinggi, periode rata-rata &amp; swell; angin: kecepatan, arah &amp; medan vektor). Periode &ge; {LONG_PERIOD_SWELL_S}s menandakan swell panjang berisiko tinggi. Data diperbarui otomatis setiap menit.
             </p>
           </div>
         </div>

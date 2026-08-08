@@ -11,7 +11,13 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from '@/firebase';
-import type { GfwVesselEvent, LocationQuery, RiskAnalysisResult } from '@/app/types/maritime';
+import type {
+  GfwVesselEvent,
+  LocationQuery,
+  RiskAnalysisResult,
+  SatelliteAnalysis,
+  SatelliteSolidWasteAnalysis,
+} from '@/app/types/maritime';
 import type { NearbySource } from '@/components/peta-risiko/sources';
 
 /**
@@ -29,6 +35,10 @@ export interface AnalysisHistoryEntry {
   location: LocationQuery;
   vessels: GfwVesselEvent[];
   nearbySources: NearbySource[];
+  /** Analisis citra satelit NASA GIBS (opsional) */
+  satellite?: SatelliteAnalysis;
+  /** Deteksi sampah padat terapung Sentinel-2 (opsional) */
+  solidWaste?: SatelliteSolidWasteAnalysis;
   /** Firestore Timestamp atau ISO string */
   createdAt?: unknown;
 }
@@ -52,6 +62,8 @@ export async function saveAnalysisHistory(
       location: sanitize(payload.location),
       vessels: sanitize(payload.vessels ?? []),
       nearbySources: sanitize(payload.nearbySources ?? []),
+      satellite: payload.satellite ? sanitize(payload.satellite) : null,
+      solidWaste: payload.solidWaste ? sanitize(payload.solidWaste) : null,
       createdAt: serverTimestamp(),
     });
   } catch (err) {

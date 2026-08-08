@@ -60,5 +60,28 @@ service cloud.firestore {
       allow read, delete: if isOwner();
       allow update: if isOwner() && request.resource.data.uid == resource.data.uid;
     }
+
+    // Waste verification feedback (sampah padat): anyone signed in can vote on a
+    // candidate (confirmed/rejected); stats are shared so accuracy is computed
+    // across all researchers.
+    match /wasteFeedback/{docId} {
+      function signedIn() {
+        return request.auth != null;
+      }
+      function validNew() {
+        return request.auth.uid == request.resource.data.uid
+          && request.resource.data.size() < 1000000
+          && request.resource.data.uid is string
+          && request.resource.data.candidateKey is string
+          && request.resource.data.verdict in ['confirmed', 'rejected'];
+      }
+      allow read: if true;
+      allow create: if signedIn() && validNew();
+      allow update: if signedIn()
+        && request.auth.uid == resource.data.uid
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.verdict in ['confirmed', 'rejected'];
+      allow delete: if signedIn() && request.auth.uid == resource.data.uid;
+    }
   }
 }

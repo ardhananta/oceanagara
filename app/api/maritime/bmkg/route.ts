@@ -45,9 +45,9 @@ function parseBmkgStringJson(rawData: unknown): unknown {
 }
 
 /** Small in-memory cache so the 10 per-region badge requests don't each pull
- * the full (~7MB) INAWAVES arrays from BMKG every 5 minutes.
+ * the full (~7MB) INAWAVES arrays from BMKG every minute.
  */
-const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_TTL_MS = 45 * 1000;
 const pointCache = new Map<string, { data: BmkgWeatherData; fetchedAt: number }>();
 
 function pointCacheKey(lat: number, lon: number): string {

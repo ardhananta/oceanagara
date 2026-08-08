@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { GfwData, GfwVesselEvent } from '@/app/types/maritime';
-import { bearingDeg, isLandPoint, type GeoPoint } from '@/components/peta-risiko/distances';
+import { bearingDeg, isLandPoint, nearestWaterPoint, type GeoPoint } from '@/components/peta-risiko/distances';
 
 const MAX_EVENTS = 20;
 
@@ -28,14 +28,18 @@ const MOCK_VESSELS = [
   { name: 'MT BALIKPAPAN GOLD', type: 'tanker', flag: 'IDN' },
 ];
 
-/** Random water-only position inside the bbox (rejected when on land). */
+/** Random water-only position inside the bbox (rejected when on land).
+ * Falls back to the nearest water cell when the bbox is mostly land
+ * (grid 0.1° terlalu kasar untuk teluk/pantai sempit). */
 function randomWaterPoint(bbox: { north: number; south: number; east: number; west: number }): GeoPoint | null {
   for (let attempt = 0; attempt < 40; attempt++) {
     const lat = clampLat(bbox.south + Math.random() * (bbox.north - bbox.south));
     const lon = bbox.west + Math.random() * (bbox.east - bbox.west);
     if (!isLandPoint(lat, lon)) return { lat, lon };
   }
-  return null;
+  const lat = clampLat(bbox.south + Math.random() * (bbox.north - bbox.south));
+  const lon = bbox.west + Math.random() * (bbox.east - bbox.west);
+  return nearestWaterPoint(lat, lon, 20);
 }
 
 /** Geser titik sepanjang heading (dead reckoning sederhana untuk mock). */
@@ -120,7 +124,7 @@ export function getMockGfwData(
       prev = { lat: point.lat, lon: point.lon, time: t };
     }
   }
-  return { source: 'gfw', vesselEvents: events, totalEvents: events.length };
+  return { source: 'gfw', vesselEvents: events, totalEvents: events.length, isMock: true };
 }
 
 /**
@@ -221,7 +225,7 @@ export async function fetchGfwEvents(params: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(15_000),
       });
 
       if (res.ok || res.status === 201) {
@@ -230,7 +234,7 @@ export async function fetchGfwEvents(params: {
           .map((e: Record<string, unknown>) => mapEvent(e))
           .filter((e: GfwVesselEvent | null): e is GfwVesselEvent => e !== null)
           .slice(0, maxEvents);
-        return { source: 'gfw', vesselEvents: events, totalEvents: raw.total ?? events.length };
+        return { source: 'gfw', vesselEvents: events, totalEvents: raw.total ?? events.length, isMock: false };
       }
       console.warn('[GFW API] HTTP', res.status, (await res.text()).slice(0, 300));
     } catch (err) {

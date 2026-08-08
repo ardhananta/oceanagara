@@ -20,13 +20,13 @@ interface RiskFormProps {
 }
 
 export const REGION_PRESETS = [
-  { id: 'semarang', name: 'Laut Jawa (Pesisir Semarang)', lat: -6.9, lon: 110.4, bbox: { north: -5.5, south: -8.0, east: 112.0, west: 108.5 } },
+  { id: 'semarang', name: 'Laut Jawa (Pesisir Semarang)', lat: -6.9, lon: 110.4, bbox: { north: -6.2, south: -7.4, east: 111.2, west: 109.6 } },
   { id: 'jakarta', name: 'Teluk Jakarta', lat: -5.97, lon: 106.83, bbox: { north: -5.8, south: -6.1, east: 107.0, west: 106.6 } },
   { id: 'makassar', name: 'Selat Makassar', lat: -3.0, lon: 118.0, bbox: { north: -1.0, south: -5.0, east: 120.0, west: 116.0 } },
   { id: 'malaka', name: 'Selat Malaka', lat: 2.5, lon: 101.5, bbox: { north: 4.5, south: 1.0, east: 104.0, west: 99.5 } },
   { id: 'banda', name: 'Laut Banda', lat: -5.0, lon: 128.5, bbox: { north: -3.5, south: -7.0, east: 131.0, west: 126.0 } },
   { id: 'bali', name: 'Perairan Bali & Selat Lombok', lat: -8.5, lon: 115.5, bbox: { north: -8.0, south: -9.2, east: 116.5, west: 114.3 } },
-  { id: 'custom', name: 'Ketik Lokasi Lain (Custom)', lat: -6.9, lon: 110.4, bbox: { north: -5.5, south: -8.0, east: 112.0, west: 108.5 } },
+  { id: 'custom', name: 'Ketik Lokasi Lain (Custom)', lat: -6.9, lon: 110.4, bbox: { north: -6.2, south: -7.4, east: 111.2, west: 109.6 } },
 ];
 
 const POLLUTION_OPTIONS = [

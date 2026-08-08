@@ -31,8 +31,9 @@ const OUT_GRID: InawavesGridInfo & { nx: 24; ny: 15 } = {
 };
 
 // In-memory cache: the raw INAWAVES payload is ~4.7MB, don't re-fetch it
-// from BMKG on every client request (clients auto-refresh every 5 min).
-const CACHE_TTL_MS = 10 * 60 * 1000;
+// from BMKG on every client request (clients auto-refresh every 1 min).
+// TTL kept below the client refresh cadence so each minute poll gets fresh data.
+const CACHE_TTL_MS = 45 * 1000;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let cache: { payload: any; fetchedAt: number } | null = null;
 

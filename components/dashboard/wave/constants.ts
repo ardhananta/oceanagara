@@ -1,7 +1,7 @@
 import type { WaveRegionPoint } from './types';
 
-/** Auto-refresh interval for BMKG telemetry data (5 minutes) */
-export const AUTO_REFRESH_MS = 5 * 60 * 1000;
+/** Auto-refresh interval for BMKG telemetry data (1 minute) */
+export const AUTO_REFRESH_MS = 60 * 1000;
 
 /** Long-period swell threshold: waves ≥ 12s are hazardous for small vessels & coast */
 export const LONG_PERIOD_SWELL_S = 12;

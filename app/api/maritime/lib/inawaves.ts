@@ -78,17 +78,19 @@ export function isoToBaserun(iso: string): string | null {
 
 /**
  * Candidate INAWAVES baseruns, newest first:
- * 1. inawaves (or inaflows) runs listed by the modelrun endpoint
- * 2. today / yesterday / day-before 00:00 UTC (INAWAVES runs daily at 00:00Z)
+ * 1. `inawaves` runs listed by the modelrun endpoint (legacy key)
+ * 2. `w3g_hires` runs — BMKG now serves INAWAVES output from w3g_hires
+ *    netcdf files, and publishes them at 12:00Z (not 00:00Z)
+ * 3. calculated fallback: last 3 days × 00:00Z + 12:00Z UTC
  *
- * Hasil di-cache 10 menit — endpoint `modelrun` lambat dan dipanggil untuk
+ * Hasil di-cache 1 menit — endpoint `modelrun` lambat dan dipanggil untuk
  * hampir setiap titik arus yang belum ada di cache.
  */
 let baserunCacheValue: string[] | null = null;
 let baserunCacheFetchedAt = 0;
 
 export async function getBaserunCandidates(): Promise<string[]> {
-  if (baserunCacheValue && Date.now() - baserunCacheFetchedAt < 10 * 60 * 1000) {
+  if (baserunCacheValue && Date.now() - baserunCacheFetchedAt < 60 * 1000) {
     return baserunCacheValue;
   }
 
@@ -104,9 +106,13 @@ export async function getBaserunCandidates(): Promise<string[]> {
       const parsed = parseBmkgStringJson(await res.text());
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         const obj = parsed as Record<string, unknown>;
-        // Only INAWAVES runs are valid for the wave model — the other models
-        // (inaflows, w3g_hires) return HTTP 500 from the inawaves endpoints.
-        const runs = Array.isArray(obj.inawaves) ? obj.inawaves : [];
+        // Only runs backed by w3g_hires netcdf files are valid for the wave
+        // endpoints — `inaflows` runs return 404. `inawaves` may disappear
+        // from the payload, so also accept `w3g_hires`.
+        const runs = [
+          ...(Array.isArray(obj.inawaves) ? obj.inawaves : []),
+          ...(Array.isArray(obj.w3g_hires) ? obj.w3g_hires : []),
+        ];
         for (const run of runs) {
           const b = isoToBaserun(String(run));
           if (b && !candidates.includes(b)) candidates.push(b);
@@ -119,8 +125,11 @@ export async function getBaserunCandidates(): Promise<string[]> {
 
   for (let i = 0; i < 3; i++) {
     const d = new Date(Date.now() - i * 86_400_000);
-    const b = `${d.getUTCFullYear()}${pad2(d.getUTCMonth() + 1)}${pad2(d.getUTCDate())}0000`;
-    if (!candidates.includes(b)) candidates.push(b);
+    const base = `${d.getUTCFullYear()}${pad2(d.getUTCMonth() + 1)}${pad2(d.getUTCDate())}`;
+    for (const hh of ['0000', '1200']) {
+      const b = `${base}${hh}`;
+      if (!candidates.includes(b)) candidates.push(b);
+    }
   }
 
   baserunCacheValue = candidates;
@@ -148,7 +157,7 @@ export function deriveGrid(header: {
 // The raw INAWAVES payloads are ~2-5MB each. All per-region requests share the
 // same baserun, so fetch each param once per modelrun and reuse the arrays.
 
-const GRID_CACHE_TTL_MS = 10 * 60 * 1000;
+const GRID_CACHE_TTL_MS = 45 * 1000;
 const gridCache = new Map<string, { value: unknown; fetchedAt: number }>();
 
 function gridCacheKey(param: string, baserun: string): string {

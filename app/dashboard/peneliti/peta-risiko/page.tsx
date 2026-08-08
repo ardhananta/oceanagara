@@ -24,6 +24,8 @@ import type {
   LocationQuery,
   MaritimeDataBundle,
   RiskAnalysisResult,
+  SatelliteAnalysis,
+  SatelliteSolidWasteAnalysis,
 } from '@/app/types/maritime';
 
 // Leaflet map component dynamically imported to prevent SSR window issues
@@ -33,6 +35,8 @@ const LOADING_STEPS = [
   'Agent 1 (Aruna) menyintesis koordinat & parameter wilayah…',
   'Mengambil data perairan BMKG Maritim (cuaca & arus)…',
   'Mengambil data aktivitas kapal Global Fishing Watch (GFW)…',
+  'Mengambil citra satelit NASA GIBS & analisis piksel…',
+  'Mendeteksi sampah padat terapung (Sentinel-2)…',
   'Agent 2 (Triton) memodelkan titik risiko pencemaran & koordinat…',
 ];
 
@@ -42,16 +46,26 @@ async function fetchMaritimeData(location: LocationQuery): Promise<MaritimeDataB
   const { lat, lon, boundingBox: bb, startDate, endDate } = location;
   const errors: string[] = [];
 
-  const [bmkgRes, gfwRes] = await Promise.allSettled([
+  const [bmkgRes, gfwRes, satRes, s2Res] = await Promise.allSettled([
     fetch(`/api/maritime/bmkg?lat=${lat}&lon=${lon}`).then((r) => r.json()),
     fetch(
       `/api/maritime/gfw?north=${bb.north}&south=${bb.south}&east=${bb.east}&west=${bb.west}&startDate=${startDate}&endDate=${endDate}`
+    ).then((r) => r.json()),
+    fetch(
+      `/api/maritime/satelit?north=${bb.north}&south=${bb.south}&east=${bb.east}&west=${bb.west}&date=${endDate}`
+    ).then((r) => r.json()),
+    fetch(
+      `/api/maritime/satelit-s2?north=${bb.north}&south=${bb.south}&east=${bb.east}&west=${bb.west}&date=${endDate}`
     ).then((r) => r.json()),
   ]);
 
   return {
     bmkg: bmkgRes.status === 'fulfilled' ? bmkgRes.value : (errors.push('BMKG fetch gagal'), null),
     gfw: gfwRes.status === 'fulfilled' ? gfwRes.value : (errors.push('GFW fetch gagal'), null),
+    satellite:
+      satRes.status === 'fulfilled' ? (satRes.value as SatelliteAnalysis) : (errors.push('Satelit fetch gagal'), null),
+    solidWaste:
+      s2Res.status === 'fulfilled' ? (s2Res.value as SatelliteSolidWasteAnalysis) : (errors.push('Sentinel-2 fetch gagal'), null),
     fetchedAt: new Date().toISOString(),
     errors,
   };
@@ -69,6 +83,8 @@ export default function PetaRisikoPage() {
   );
   const [result, setResult] = useState<RiskAnalysisResult | null>(null);
   const [vessels, setVessels] = useState<GfwData['vesselEvents']>([]);
+  const [satellite, setSatellite] = useState<SatelliteAnalysis | null>(null);
+  const [solidWaste, setSolidWaste] = useState<SatelliteSolidWasteAnalysis | null>(null);
   const [nearbySources, setNearbySources] = useState<NearbySource[]>([]);
   const [uid, setUid] = useState<string | null>(null);
   const [history, setHistory] = useState<AnalysisHistoryEntry[]>([]);
@@ -121,7 +137,7 @@ export default function PetaRisikoPage() {
       stepProgress(0);
       await new Promise((r) => setTimeout(r, 600));
 
-      // Step 1: Fetch BMKG Data
+      // Step 1: Fetch BMKG / GFW / Satelit data
       stepProgress(1);
       const maritimeData = await fetchMaritimeData(locationQuery);
 
@@ -129,8 +145,16 @@ export default function PetaRisikoPage() {
       stepProgress(2);
       await new Promise((r) => setTimeout(r, 500));
 
-      // Step 3: Agent 2 Risk Analysis Call
+      // Step 3: Satellite progress animation
       stepProgress(3);
+      await new Promise((r) => setTimeout(r, 500));
+
+      // Step 4: Sentinel-2 solid waste progress animation
+      stepProgress(4);
+      await new Promise((r) => setTimeout(r, 400));
+
+      // Step 5: Agent 2 Risk Analysis Call
+      stepProgress(5);
       const gfwEvents = maritimeData.gfw?.vesselEvents ?? [];
       const sourceContext = buildSourceContext(locationQuery.lat, locationQuery.lon, maritimeData.gfw);
       const agentRes = await fetch('/api/ai/agent2', {
@@ -152,6 +176,8 @@ export default function PetaRisikoPage() {
         const previewSources = regionSourcePreview(locationQuery.lat, locationQuery.lon, 200);
         setResult(enriched);
         setVessels(gfwEvents);
+        setSatellite(maritimeData.satellite);
+        setSolidWaste(maritimeData.solidWaste);
         setNearbySources(previewSources);
         setPhase('result');
 
@@ -165,6 +191,8 @@ export default function PetaRisikoPage() {
             location: locationQuery,
             vessels: gfwEvents,
             nearbySources: previewSources,
+            satellite: maritimeData.satellite ?? undefined,
+            solidWaste: maritimeData.solidWaste ?? undefined,
           }).then(() => {
             setSavedToHistory(true);
             loadAnalysisHistory(uid).then((entries) => setHistory(entries));
@@ -185,12 +213,16 @@ export default function PetaRisikoPage() {
     setPhase('form');
     setResult(null);
     setLocation(null);
+    setSatellite(null);
+    setSolidWaste(null);
     setLoadingSteps(LOADING_STEPS.map((label) => ({ label, done: false, active: false })));
   }, []);
 
   const handleLoadHistory = useCallback((entry: AnalysisHistoryEntry) => {
     setResult(entry.result);
     setVessels(entry.vessels ?? []);
+    setSatellite(entry.satellite ?? null);
+    setSolidWaste(entry.solidWaste ?? null);
     setNearbySources(entry.nearbySources ?? []);
     setLocation(entry.location);
     setPhase('result');
@@ -462,24 +494,35 @@ export default function PetaRisikoPage() {
             </div>
 
             {/* Main Result Split View */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch min-h-[600px]">
-              {/* Map Column */}
-              <div className="lg:col-span-8 bg-white border border-zinc-200 rounded-3xl p-3 shadow-sm flex flex-col">
-                <div className="flex-1 w-full rounded-2xl overflow-hidden min-h-[520px] lg:min-h-[720px]">
+            <div className="grid lg:grid-cols-3 gap-6 items-start">
+              {/* Map Column — 2/3 lebar, sticky full-height */}
+              <div className="lg:col-span-2">
+                <div className="lg:sticky lg:top-6">
                   <RiskMap
                     riskPoints={result.riskPoints}
                     centerLat={location.lat}
                     centerLon={location.lon}
-                    regionName={location.regionName}
                     vessels={vessels}
                     nearbySources={nearbySources}
+                    satellite={satellite}
+                    solidWaste={solidWaste}
+                    heightClass="h-[52vh] lg:h-[calc(100vh-160px)]"
                   />
                 </div>
               </div>
 
-              {/* Panel Column */}
-              <div className="lg:col-span-4 bg-white border border-zinc-200 rounded-3xl overflow-hidden shadow-sm flex flex-col max-h-[760px] lg:sticky lg:top-6">
-                <RiskPanel result={result} onReset={handleResetForm} />
+              {/* Panel Column — 1/3 lebar, scroll internal */}
+              <div className="lg:col-span-1">
+                <div className="lg:h-[calc(100vh-160px)] lg:overflow-y-auto scroll-slim lg:pr-1.5">
+                  <RiskPanel
+                    key={result.analysisTimestamp}
+                    result={result}
+                    satellite={satellite}
+                    solidWaste={solidWaste}
+                    uid={uid}
+                    onReset={handleResetForm}
+                  />
+                </div>
               </div>
             </div>
           </div>

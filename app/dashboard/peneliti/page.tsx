@@ -227,6 +227,8 @@ export default function DashboardPenelitiPage() {
                     router.push('/dashboard/peneliti/peta-risiko');
                   } else if (card.id === 'prediksi-limbah') {
                     router.push('/dashboard/peneliti/arus-pencemaran');
+                  } else if (card.id === 'rekomendasi-zona') {
+                    router.push('/dashboard/peneliti/zona-tangkap');
                   } else {
                     setSelectedFeature(card);
                   }
@@ -329,6 +331,17 @@ export default function DashboardPenelitiPage() {
               {selectedFeature?.id === 'prediksi-limbah' && (
                 <button
                   onClick={() => router.push('/dashboard/peneliti/arus-pencemaran')}
+                  className="px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold uppercase tracking-wider rounded transition-all duration-200 shadow-sm flex items-center gap-2"
+                >
+                  <span>Buka Fitur</span>
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                  </svg>
+                </button>
+              )}
+              {selectedFeature?.id === 'rekomendasi-zona' && (
+                <button
+                  onClick={() => router.push('/dashboard/peneliti/zona-tangkap')}
                   className="px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold uppercase tracking-wider rounded transition-all duration-200 shadow-sm flex items-center gap-2"
                 >
                   <span>Buka Fitur</span>
