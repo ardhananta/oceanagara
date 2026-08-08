@@ -5,10 +5,13 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { onAuthChange, logout, getUserProfile, UserProfile } from '@/app/service/authentication';
+import dynamic from 'next/dynamic';
 import kualitas from '@/public/img/Kualitas.webp';
 import limbah from '@/public/img/Limbah.webp';
 import peta from '@/public/img/Tercemar.webp';
 import zona from '@/public/img/ZonaIkan.webp';
+
+const WaveMap = dynamic(() => import('@/components/dashboard/WaveMap'), { ssr: false });
 
 interface FeatureCard {
   id: string;
@@ -219,7 +222,13 @@ export default function DashboardPenelitiPage() {
             {FEATURE_CARDS.map((card) => (
               <div
                 key={card.id}
-                onClick={() => setSelectedFeature(card)}
+                onClick={() => {
+                  if (card.id === 'peta-risiko') {
+                    router.push('/dashboard/peneliti/peta-risiko');
+                  } else {
+                    setSelectedFeature(card);
+                  }
+                }}
                 className="group cursor-pointer"
               >
                 {/* MOBILE (< md): compact square icon tile */}
@@ -268,6 +277,11 @@ export default function DashboardPenelitiPage() {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* ── BMKG Wave Monitoring Map Widget ── */}
+          <div className="mt-12">
+            <WaveMap />
           </div>
 
         </div>
@@ -336,7 +350,15 @@ export default function DashboardPenelitiPage() {
               {selectedFeature.description}
             </p>
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-2 flex items-center justify-end gap-3">
+              {selectedFeature?.id === 'peta-risiko' && (
+                <button
+                  onClick={() => router.push('/dashboard/peneliti/peta-risiko')}
+                  className="px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold uppercase tracking-wider rounded transition-all duration-200 shadow-sm"
+                >
+                  Buka Fitur →
+                </button>
+              )}
               <button
                 onClick={() => setSelectedFeature(null)}
                 className="px-5 py-2.5 bg-[#162e52] hover:bg-[#1f4275] text-white text-xs font-bold uppercase tracking-wider rounded transition-all duration-200 shadow-sm"

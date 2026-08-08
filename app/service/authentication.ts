@@ -10,6 +10,7 @@ import {
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/firebase";
+import { getCachedUserProfile, invalidateUserProfile, setCachedUserProfile } from "./userCache";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -210,6 +211,8 @@ export async function loginWithGoogle(): Promise<AuthResult> {
 
 /** Sign out the current user. */
 export async function logout(): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (uid) invalidateUserProfile(uid);
   await signOut(auth);
 }
 
@@ -236,20 +239,30 @@ export async function saveUserProfile(
     profileCompleted:   true,
     profileCompletedAt: serverTimestamp(),
   });
+
+  // Profile just changed → never serve the stale cached copy
+  invalidateUserProfile(uid);
 }
 
 /**
- * Fetch a user's full profile from Firestore.
+ * Fetch a user's full profile from Firestore (cache-first).
  * Returns null if the document doesn't exist.
  */
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
+  // Cache-first: dashboards fetch the profile on every auth change
+  const cached = getCachedUserProfile(uid);
+  if (cached) return cached;
+
   try {
     const snap = await getDoc(doc(db, "users", uid));
     if (!snap.exists()) return null;
-    return snap.data() as UserProfile;
+    const profile = snap.data() as UserProfile;
+    setCachedUserProfile(uid, profile);
+    return profile;
   } catch (err) {
     console.error("getUserProfile failed (Firestore offline/permission issue?):", err);
-    return null;
+    // Fall back to any stored copy (even expired) rather than returning null
+    return getCachedUserProfile(uid, true);
   }
 }
 
