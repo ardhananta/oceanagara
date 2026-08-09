@@ -117,11 +117,11 @@ function clamp(v: number, lo: number, hi: number): number {
  * - Klorofil tinggi (fotosintesis) → pH cenderung basa (alkali): +0.25/decade chl.
  * - Suhu lebih hangat → kelarutan CO2 turun, pH sedikit turun: -0.03/°C di atas 28°C.
  */
-function phFromChl(chl: number): number {
+export function phFromChl(chl: number): number {
   return clamp(7.9 + 0.25 * Math.log10(1 + chl), 7.0, 9.0);
 }
 
-function phFromSst(sst: number): number {
+export function phFromSst(sst: number): number {
   return clamp(7.9 - 0.03 * (sst - 28), 7.2, 8.6);
 }
 

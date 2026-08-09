@@ -229,6 +229,8 @@ export default function DashboardPenelitiPage() {
                     router.push('/dashboard/peneliti/arus-pencemaran');
                   } else if (card.id === 'rekomendasi-zona') {
                     router.push('/dashboard/peneliti/zona-tangkap');
+                  } else if (card.id === 'prediksi-kualitas') {
+                    router.push('/dashboard/peneliti/analisis-kualitas-ikan');
                   } else {
                     setSelectedFeature(card);
                   }

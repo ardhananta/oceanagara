@@ -330,6 +330,150 @@ export interface FishingAiAnalysis {
   degraded?: boolean;
 }
 
+
+// ── Analisis Kualitas Ikan (iklim, suhu, limbah) ───────────────────────────
+
+/** Kualitas ikan per spesies di zona. */
+export interface SpeciesQuality {
+  /** Nama spesies (jendela suhu/klorofil zona) */
+  species: string;
+  /** Skor kualitas spesies 0-100 */
+  quality: number;
+  /** Catatan dampak (stres suhu, bloom, kontaminasi) */
+  note: string;
+}
+
+/** Penilaian kualitas ikan untuk satu zona tangkap. */
+export interface FishQualityScore {
+  /** Indeks ke zones (analisis zona-tangkap) */
+  zoneIndex: number;
+  lat: number;
+  lon: number;
+  /** Skor keseluruhan kualitas ikan zona 0-100 (tinggi = lebih baik) */
+  qualityScore: number;
+  /** Label kualitas: Sangat Baik / Baik / Sedang / Berisiko */
+  qualityLabel: string;
+  /** Sumber tekanan dominan (stres suhu, HAB, jarak kontaminasi) */
+  pressureSources: string[];
+  /** Jarak ke titik kontaminasi terdekat (km) */
+  nearestContaminantKm: number | null;
+  /** Label kontaminasi terdekat */
+  nearestContaminantLabel?: string | null;
+  /** Kualitas per spesies yang masuk jendela habitat zona */
+  speciesQuality: SpeciesQuality[];
+  /** Tekanan suhu 0-100 (anomali vs jendela spesies) */
+  sstStress: number;
+  /** Risiko ledakan alga (klorofil > 8 mg/m³) */
+  habRisk: boolean;
+  /** Estimasi pH permukaan laut zona (heuristik klorofil × SST) */
+  ph?: number;
+  /** Tekanan pH 0-100 (deviasi dari kisaran optimal laut ~8.0) */
+  phStress?: number;
+}
+
+/** Hasil analisis kualitas ikan vs perubahan iklim, suhu, dan limbah. */
+export interface FishQualityAnalysis {
+  source: 'kualitas-ikan';
+  /** Tanggal citra yang dipakai (klorofil/SST) */
+  date: string;
+  /** Zona tangkap hasil analisis zona-tangkap (reused) */
+  zones: FishingZone[];
+  /** Penilaian kualitas per zona */
+  scores: FishQualityScore[];
+  summary: string;
+  fetchedAt: string;
+  disclaimer: string;
+  /** Citra overlay penyebaran klorofil-a & SST (PNG data URL, bounds = bbox analisis). */
+  layers?: {
+    chl?: FishQualityLayer;
+    sst?: FishQualityLayer;
+    /** Citra overlay estimasi pH permukaan laut (heuristik klorofil × SST). */
+    ph?: FishQualityLayer;
+  };
+  /** Analisis Agentic AI (dampak iklim, limbah, prediksi kawanan) */
+  aiAnalysis?: FishQualityAiAnalysis | null;
+}
+
+/** Satu citra overlay (PNG data URL) hasil rasterisasi grid 256×256. */
+export interface FishQualityLayer {
+  dataUrl: string;
+  /** Tanggal citra sumber */
+  date: string;
+  /** Rentang nilai fisik yang direpresentasikan palet (min–max) */
+  min: number;
+  max: number;
+}
+
+/** Hasil analisis Agentic AI untuk kualitas ikan. */
+export interface FishQualityAiAnalysis {
+  /** Ringkasan kualitas ikan & tekanan iklim di wilayah */
+  summary: string;
+  /** Dampak perubahan iklim (suhu naik) terhadap spesies */
+  climateImpact: string;
+  /** Dampak limbah/polusi terhadap kualitas ikan */
+  wasteImpact: string;
+  /** Prediksi tujuan pergerakan kawanan berikutnya (koordinat + label) */
+  nextSchool: {
+    lat: number;
+    lon: number;
+    label: string;
+  };
+  /** Peringatan risiko */
+  risks: string[];
+  /** Rekomendasi tindakan */
+  recommendations: string[];
+  /** true = analisis degradasi (AI tidak terjangkau, pakai heuristik) */
+  degraded?: boolean;
+}
+
+// ── Verifikasi Kualitas Tangkapan (setelah ikan ditangkap) ───────────────────
+
+/** Pengamatan peneliti/nelayan terhadap hasil tangkapan setelah melaut. */
+export interface TangkapanVerificationInput {
+  /** Spesies ikan yang ditangkap (dari zona prediksi) */
+  species: string;
+  /** Cuaca saat penangkapan: cerah | berawan | hujan | angin-kencang */
+  weather: string;
+  /** Suhu air laut saat penangkapan (°C) */
+  waterTemp: number;
+  /** Durasi penyimpanan sejak ditangkap: <2 | 2-6 | 6-12 | 12-24 | >24 (jam) */
+  holdHours: string;
+  /** Kondisi mata ikan: jernih | agak-keruh | keruh-cekung */
+  eyes: string;
+  /** Warna insang: merah-segar | merah-muda | coklat-keabu */
+  gills: string;
+  /** Bau: khas-laut | amis-ringan | amis-menyengat */
+  smell: string;
+  /** Tekstur daging: kenyal | agak-lembek | lembek-berair */
+  flesh: string;
+  /** Foto tangkapan (base64 JPEG, maks 3) — resolusi penuh untuk analisis AI. */
+  photos?: string[];
+  /** Versi thumbnail foto (base64, kecil) — disimpan di Firestore agar ringkas. */
+  photoThumbs?: string[];
+}
+
+/** Hasil penilaian AI atas kesegaran tangkapan. */
+export interface TangkapanVerificationVerdict {
+  /** Skor kesegaran 0-100 (tinggi = lebih segar) */
+  freshnessScore: number;
+  /** Segar / Mulai Berubah / Tidak Segar */
+  freshnessLabel: string;
+  /** Ringkasan 1-2 kalimat */
+  summary: string;
+  /** Perubahan yang terlihat (akibat cuaca/suhu) */
+  changes: string[];
+  /** Saran penyimpanan & penanganan */
+  storageAdvice: string[];
+  /** Peringatan risiko */
+  risks: string[];
+  /** Temuan visual AI dari foto tangkapan (bila foto dianalisis) */
+  visualFindings?: string[];
+  /** true = foto ikut dianalisis vision model */
+  photosAnalyzed?: boolean;
+  /** true = analisis degradasi (AI tidak terjangkau, pakai heuristik) */
+  degraded?: boolean;
+}
+
 // ── Arus Pencemaran (prediksi penyebaran limbah berbasis arus) ────────────────
 
 /** Vektor arus laut (BMKG): arah MENUJU (0=N, searah jarum jam), m/s */

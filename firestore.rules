@@ -61,6 +61,49 @@ service cloud.firestore {
       allow update: if isOwner() && request.resource.data.uid == resource.data.uid;
     }
 
+    // Fish quality prediction history (analisis kualitas ikan): per-user,
+    // same policy as riskAnalyses. Update allowed so verifications can be
+    // attached (verifications array) without transferring ownership.
+    match /fishQualityAnalyses/{docId} {
+      function signedIn() {
+        return request.auth != null;
+      }
+      function isOwner() {
+        return signedIn() && request.auth.uid == resource.data.uid;
+      }
+      function validNew() {
+        return request.auth.uid == request.resource.data.uid
+          && request.resource.data.size() < 1000000
+          && request.resource.data.uid is string
+          && request.resource.data.regionName is string
+          && request.resource.data.form is map
+          && request.resource.data.analysis is map;
+      }
+      allow create: if signedIn() && validNew();
+      allow read, delete: if isOwner();
+      allow update: if isOwner() && request.resource.data.uid == resource.data.uid;
+    }
+
+    // Fish freshness verification (verifikasi kesegaran tangkapan): per-user.
+    match /fishVerifications/{docId} {
+      function signedIn() {
+        return request.auth != null;
+      }
+      function isOwner() {
+        return signedIn() && request.auth.uid == resource.data.uid;
+      }
+      function validNew() {
+        return request.auth.uid == request.resource.data.uid
+          && request.resource.data.size() < 1000000
+          && request.resource.data.uid is string
+          && request.resource.data.regionName is string
+          && request.resource.data.verdict is map;
+      }
+      allow create: if signedIn() && validNew();
+      allow read, delete: if isOwner();
+      allow update: if isOwner() && request.resource.data.uid == resource.data.uid;
+    }
+
     // Waste verification feedback (sampah padat): anyone signed in can vote on a
     // candidate (confirmed/rejected); stats are shared so accuracy is computed
     // across all researchers.

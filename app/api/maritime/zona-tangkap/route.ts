@@ -28,7 +28,7 @@ const GRID = 256;
 
 // Jendela suhu (°C) & klorofil (mg/m³) per spesies — kompilasi literatur
 // perikanan pelagis Indonesia (KKP, riset penginderaan jauh perikanan).
-const SPECIES: Array<{ name: string; sstMin: number; sstMax: number; chlMin: number; chlMax: number }> = [
+export const SPECIES: Array<{ name: string; sstMin: number; sstMax: number; chlMin: number; chlMax: number }> = [
   { name: 'Cakalang (Skipjack)', sstMin: 20, sstMax: 30, chlMin: 0.15, chlMax: 0.8 },
   { name: 'Madidihang (Yellowfin)', sstMin: 18, sstMax: 29, chlMin: 0.15, chlMax: 1.5 },
   { name: 'Tuna Mata Besar (Bigeye)', sstMin: 14, sstMax: 24, chlMin: 0.15, chlMax: 1.2 },
@@ -216,28 +216,37 @@ function summarizeGfwActivity(
   };
 }
 
-export async function GET(req: NextRequest) {
-  const { searchParams } = req.nextUrl;
-  const north = Number(searchParams.get('north'));
-  const south = Number(searchParams.get('south'));
-  const east = Number(searchParams.get('east'));
-  const west = Number(searchParams.get('west'));
+/** Titik kontaminasi (label + koordinat) untuk eksklusi zona. */
+export interface Contaminant {
+  lat: number;
+  lon: number;
+  radiusKm: number;
+  label: string;
+}
 
-  if (![north, south, east, west].every(Number.isFinite)) {
-    return NextResponse.json({ error: 'north, south, east, west diperlukan' }, { status: 400 });
-  }
+/** Hasil analisis + data mentah untuk analisis turunan (analisis kualitas ikan). */
+export interface ZonaAnalysisBundle {
+  analysis: FishingZoneAnalysis;
+  contaminants: Contaminant[];
+  /** Tanggal citra yang benar-benar dipakai (fallback 7 hari). */
+  date: string;
+  /** Grid klorofil-a 256×256 (mg/m³, 0/negatif = no-data) untuk citra overlay. */
+  chl: Float32Array | null;
+  /** Grid SST 256×256 (°C, 0/negatif = no-data) untuk citra overlay. */
+  sst: Float32Array | null;
+  /** Tanggal citra klorofil yang benar-benar dipakai. */
+  chlDate: string | null;
+  /** Tanggal citra SST yang benar-benar dipakai. */
+  sstDate: string | null;
+}
 
-  const bbox: Bbox = {
-    north: Math.min(90, Math.max(-90, north)),
-    south: Math.min(90, Math.max(-90, south)),
-    east: Math.min(180, Math.max(-180, east)),
-    west: Math.min(180, Math.max(-180, west)),
-  };
+/**
+ * Analisis lengkap zona tangkap ikan: citra klorofil/SST NASA, sampah padat
+ * (Sentinel-2), anomali GIBS, arus BMKG, dan aktivitas Global Fishing Watch.
+ * Dipakai oleh route GET zona-tangkap dan analisis kualitas ikan.
+ */
+export async function analyzeZones(bbox: Bbox, dateParam: string): Promise<ZonaAnalysisBundle> {
   const bboxArr: [number, number, number, number] = [bbox.west, bbox.south, bbox.east, bbox.north];
-
-  const dateParam = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get('date') ?? '')
-    ? searchParams.get('date')!
-    : dateDaysAgo(0);
   const centerLat = (bbox.north + bbox.south) / 2;
   const centerLon = (bbox.west + bbox.east) / 2;
 
@@ -259,17 +268,25 @@ export async function GET(req: NextRequest) {
   ]);
 
   if (!chlRes || !sstRes) {
-    return NextResponse.json({
-      source: 'zona-tangkap',
+    return {
+      analysis: {
+        source: 'zona-tangkap',
+        date: dateParam,
+        zones: [],
+        avoidedCount: 0,
+        rejectedZones: 0,
+        summary:
+          'Citra klorofil/SST tidak tersedia untuk area ini dalam jendela 7 hari (tutupan awan atau di luar lintasan satelit). Coba wilayah lain atau beberapa hari ke depan.',
+        fetchedAt: new Date().toISOString(),
+        disclaimer: 'Rekomendasi berbasis citra satelit estimatif — cek kondisi lapangan sebelum melaut.',
+      } satisfies FishingZoneAnalysis,
+      contaminants: [],
       date: dateParam,
-      zones: [],
-      avoidedCount: 0,
-      rejectedZones: 0,
-      summary:
-        'Citra klorofil/SST tidak tersedia untuk area ini dalam jendela 7 hari (tutupan awan atau di luar lintasan satelit). Coba wilayah lain atau beberapa hari ke depan.',
-      fetchedAt: new Date().toISOString(),
-      disclaimer: 'Rekomendasi berbasis citra satelit estimatif — cek kondisi lapangan sebelum melaut.',
-    } satisfies FishingZoneAnalysis);
+      chl: null,
+      sst: null,
+      chlDate: null,
+      sstDate: null,
+    };
   }
 
   const chl = chlRes.values;
@@ -411,7 +428,6 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Titik kontaminasi (buffer penolakan zona) ────────────────────────────
-  type Contaminant = { lat: number; lon: number; radiusKm: number; label: string };
   const contaminants: Contaminant[] = [];
   for (const c of wasteRes?.candidates ?? []) {
     contaminants.push({ lat: c.lat, lon: c.lon, radiusKm: 4, label: 'sampah padat terapung' });
@@ -561,18 +577,49 @@ export async function GET(req: NextRequest) {
       `${zones.length} zona aman direkomendasikan (${rejectedZones} zona potensial ditolak karena kontaminasi; ${contaminants.length} titik kontaminasi dihindari). Terbaik: ${list}.`;
   }
 
-  return NextResponse.json({
-    source: 'zona-tangkap',
+  return {
+    analysis: {
+      source: 'zona-tangkap',
+      date: chlRes.date !== sstRes.date ? `${chlRes.date} & ${sstRes.date}` : chlRes.date,
+      zones,
+      avoidedCount: contaminants.length,
+      rejectedZones,
+      summary,
+      ...(gfwRes
+        ? { gfw: summarizeGfwActivity(gfwRes.vesselEvents, bbox, gfwRes.isMock ?? false) }
+        : {}),
+      fetchedAt: new Date().toISOString(),
+      disclaimer:
+        'Rekomendasi berbasis produk satelit resmi (klorofil & SST NASA), arus BMKG, dan aktivitas kapal Global Fishing Watch. Spesies ikan adalah estimasi jendela suhu/klorofil — bukan jaminan tangkapan. Selalu cek kondisi cuaca & verifikasi lapangan.',
+    } satisfies FishingZoneAnalysis,
+    contaminants,
     date: chlRes.date !== sstRes.date ? `${chlRes.date} & ${sstRes.date}` : chlRes.date,
-    zones,
-    avoidedCount: contaminants.length,
-    rejectedZones,
-    summary,
-    ...(gfwRes
-      ? { gfw: summarizeGfwActivity(gfwRes.vesselEvents, bbox, gfwRes.isMock ?? false) }
-      : {}),
-    fetchedAt: new Date().toISOString(),
-    disclaimer:
-      'Rekomendasi berbasis produk satelit resmi (klorofil & SST NASA), arus BMKG, dan aktivitas kapal Global Fishing Watch. Spesies ikan adalah estimasi jendela suhu/klorofil — bukan jaminan tangkapan. Selalu cek kondisi cuaca & verifikasi lapangan.',
-  } satisfies FishingZoneAnalysis);
+    chl,
+    sst,
+    chlDate: chlRes.date,
+    sstDate: sstRes.date,
+  };
+}
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = req.nextUrl;
+  const north = Number(searchParams.get('north'));
+  const south = Number(searchParams.get('south'));
+  const east = Number(searchParams.get('east'));
+  const west = Number(searchParams.get('west'));
+
+  if (![north, south, east, west].every(Number.isFinite)) {
+    return NextResponse.json({ error: 'north, south, east, west diperlukan' }, { status: 400 });
+  }
+  const bbox: Bbox = {
+    north: Math.min(90, Math.max(-90, north)),
+    south: Math.min(90, Math.max(-90, south)),
+    east: Math.min(180, Math.max(-180, east)),
+    west: Math.min(180, Math.max(-180, west)),
+  };
+  const dateParam = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get('date') ?? '')
+    ? searchParams.get('date')!
+    : dateDaysAgo(0);
+  const bundle = await analyzeZones(bbox, dateParam);
+  return NextResponse.json(bundle.analysis);
 }

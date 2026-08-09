@@ -17,9 +17,21 @@ export interface FishingFormData {
 interface FishingFormProps {
   onSubmit: (data: FishingFormData) => void;
   isLoading: boolean;
+  /** Judul kartu form (default: "Zona Tangkap Ikan") */
+  title?: string;
+  /** Deskripsi singkat di bawah judul (default: teks zona tangkap) */
+  description?: string;
+  /** Label tombol submit (default: "Cari Zona Tangkap") */
+  submitLabel?: string;
 }
 
-export default function FishingForm({ onSubmit, isLoading }: FishingFormProps) {
+export default function FishingForm({
+  onSubmit,
+  isLoading,
+  title = 'Zona Tangkap Ikan',
+  description = 'Rekomendasi koordinat zona penangkapan ikan aktual dari citra satelit (klorofil & suhu NASA), diarahkan menjauhi zona terkontaminasi, lengkap dengan kategori spesies dan arah pergerakan kawanan.',
+  submitLabel = 'Cari Zona Tangkap',
+}: FishingFormProps) {
   const todayStr = new Date().toISOString().split('T')[0];
   const [regionPreset, setRegionPreset] = useState('semarang');
   const [date, setDate] = useState(todayStr);
@@ -63,11 +75,8 @@ export default function FishingForm({ onSubmit, isLoading }: FishingFormProps) {
   return (
     <form onSubmit={handleSubmit} className="bg-white border border-zinc-200/80 rounded-2xl shadow-sm p-6 max-w-3xl mx-auto space-y-6">
       <div>
-        <h2 className="text-lg font-extrabold text-[#162e52] tracking-tight">Zona Tangkap Ikan</h2>
-        <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
-          Rekomendasi koordinat zona penangkapan ikan aktual dari citra satelit (klorofil & suhu NASA), diarahkan
-          menjauhi zona terkontaminasi, lengkap dengan kategori spesies dan arah pergerakan kawanan.
-        </p>
+        <h2 className="text-lg font-extrabold text-[#162e52] tracking-tight">{title}</h2>
+        <p className="text-xs text-zinc-500 mt-1 leading-relaxed">{description}</p>
       </div>
 
       <div>
@@ -96,7 +105,12 @@ export default function FishingForm({ onSubmit, isLoading }: FishingFormProps) {
                 : 'bg-zinc-50 text-zinc-600 border-zinc-200 hover:border-[#162e52]/40'
             }`}
           >
-            🗺️ Pilih di Peta (Custom)
+            <span className="inline-flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-12v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0l3.875-1.937c.381-.19.622-.58.622-1.006V8.25" />
+              </svg>
+              Pilih di Peta (Custom)
+            </span>
           </button>
         </div>
       </div>
@@ -158,7 +172,7 @@ export default function FishingForm({ onSubmit, isLoading }: FishingFormProps) {
                 Memproses…
               </>
             ) : (
-              'Cari Zona Tangkap'
+              submitLabel
             )}
           </button>
         </div>
