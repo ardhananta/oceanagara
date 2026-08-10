@@ -8,6 +8,7 @@ import { onAuthChange, logout, getUserProfile, UserProfile } from '@/app/service
 import kualitasIkan from '@/public/img/MasyarakatKualitasIkan.png';
 import pengolahanIkan from '@/public/img/MasyarakatPengolahanIkan.png';
 import airLaut from '@/public/img/MasyarakatAirLaut.png';
+import WasteReportSection from '@/components/lapor-limbah/WasteReportSection';
 
 interface FeatureCard {
   id: string;
@@ -552,6 +553,7 @@ export default function DashboardMasyarakatPage() {
             </div>
           </div>
 
+          {/* ── Top 3 Cards Grid (Frame 15, 16, 17 reference) ── */}
           <div className="grid grid-cols-3 gap-3 md:gap-6">
             {FEATURE_CARDS.map((card) => (
               <Link
@@ -559,9 +561,17 @@ export default function DashboardMasyarakatPage() {
                 href={`/dashboard/masyarakat/blog/${card.id}`}
                 className="group cursor-pointer"
               >
+                {/* Mobile Card */}
                 <div className="md:hidden flex flex-col items-center gap-2">
                   <div className={`relative w-full aspect-square rounded-2xl overflow-hidden bg-gradient-to-br ${card.imagePlaceholderColor} flex items-center justify-center shadow-lg border border-white/20 transition-all duration-300 group-hover:shadow-xl group-hover:scale-105 group-hover:border-sky-300/60`}>
-                    <div className="text-white/70 group-hover:text-white transition-colors">
+                    {card.imageSrc && (
+                      <img
+                        src={card.imageSrc}
+                        alt={card.title}
+                        className="absolute inset-0 w-full h-full object-cover opacity-70"
+                      />
+                    )}
+                    <div className="relative z-10 text-white/80 group-hover:text-white transition-colors">
                       {card.icon}
                     </div>
                   </div>
@@ -570,7 +580,8 @@ export default function DashboardMasyarakatPage() {
                   </p>
                 </div>
 
-                <div className="hidden md:flex relative h-80 rounded-[22px] p-6 flex-col justify-between overflow-hidden shadow-xl transition-all duration-300 group-hover:-translate-y-1.5 group-hover:shadow-2xl bg-[#152740] border border-white/20 text-white group-hover:border-sky-300/80">
+                {/* Desktop Card */}
+                <div className="hidden md:flex relative h-80 rounded-[24px] p-6 flex-col justify-between overflow-hidden shadow-xl transition-all duration-300 group-hover:-translate-y-1.5 group-hover:shadow-2xl bg-[#152740] border border-white/20 text-white group-hover:border-sky-300/80">
                   {card.imageSrc && (
                     <img
                       src={card.imageSrc}
@@ -603,6 +614,57 @@ export default function DashboardMasyarakatPage() {
                 </div>
               </Link>
             ))}
+          </div>
+
+          {/* ── Horizontal Feature Banner Container (Frame 20 reference) ── */}
+          <div className="mt-6 md:mt-8">
+            <Link
+              href="/dashboard/masyarakat/lapor-limbah"
+              className="group block relative w-full rounded-[24px] overflow-hidden border border-white/20 hover:border-emerald-400/60 shadow-2xl transition-all duration-300 cursor-pointer bg-gradient-to-r from-[#15324f]/95 via-[#1b3f6b]/95 to-[#0e2a4a]/90 p-6 md:p-8"
+            >
+              {/* Background Image inside Frame 20 */}
+              <img
+                src="/img/Limbah.webp"
+                alt="Lapor Limbah Header Background"
+                className="absolute inset-0 w-full h-full object-cover opacity-25 group-hover:opacity-40 transition-opacity duration-500"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#15324f]/95 via-[#1b3f6b]/85 to-transparent z-0" />
+
+              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="flex items-start gap-4 max-w-3xl">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-400/20 text-emerald-300 border border-emerald-300/30 flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-105 transition-transform">
+                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+                    </svg>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="inline-block px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-full bg-emerald-400/20 text-emerald-200 border border-emerald-300/30">
+                        VALIDASI AI 3 LAPIS
+                      </span>
+                      <span className="text-[10px] uppercase tracking-widest text-sky-200/70 font-semibold">
+                        Fitur Pelaporan Pesisir
+                      </span>
+                    </div>
+                    <h2 className="text-xl md:text-2xl font-extrabold text-white tracking-tight leading-tight group-hover:text-emerald-100 transition-colors">
+                      Lapor Limbah di Wilayah Pesisir
+                    </h2>
+                    <p className="text-xs text-sky-100/80 leading-relaxed font-normal">
+                      Temukan limbah di pantai, sungai, atau laut? Abadikan fotonya — AI memvalidasi keaslian foto, lokasi GPS, dan waktu pengambilan sebelum dilaporkan ke peneliti.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 flex-shrink-0 self-start md:self-center">
+                  <div className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 group-hover:from-emerald-400 group-hover:to-teal-500 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all duration-200 shadow-lg group-hover:shadow-emerald-500/25 group-hover:scale-105">
+                    <span>Buka Fitur Laporan</span>
+                    <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </Link>
           </div>
 
         </div>

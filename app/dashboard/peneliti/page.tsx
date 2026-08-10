@@ -285,6 +285,34 @@ export default function DashboardPenelitiPage() {
             ))}
           </div>
 
+          {/* ── CTA: Laporan Limbah Warga ── */}
+          <div className="mt-6">
+            <button
+              onClick={() => router.push('/dashboard/peneliti/laporan-limbah')}
+              className="group w-full text-left flex items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-emerald-600/85 via-teal-600/80 to-[#162e52]/90 border border-emerald-300/30 hover:border-emerald-200/60 shadow-lg transition-all duration-300 hover:-translate-y-0.5"
+            >
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-11 h-11 rounded-xl bg-emerald-400/20 text-emerald-100 border border-emerald-300/30 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-extrabold text-white leading-tight">Laporan Limbah Warga</p>
+                  <p className="text-[11px] text-emerald-100/80 font-medium mt-0.5">
+                    Tinjau foto limbah yang dilaporkan warga — tervalidasi AI (keaslian foto, GPS &amp; waktu) dengan peta sebaran
+                  </p>
+                </div>
+              </div>
+              <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-100 flex-shrink-0 group-hover:translate-x-1 transition-transform">
+                Lihat Laporan
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                </svg>
+              </span>
+            </button>
+          </div>
+
           {/* ── BMKG Wave Monitoring Map Widget ── */}
           <div className="mt-12">
             <WaveMap />

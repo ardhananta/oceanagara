@@ -7,6 +7,7 @@ import { onAuthChange, logout, getUserProfile, UserProfile } from '@/app/service
 import pemeliharaanIkan from '@/public/img/NelayanPemeliharaanIkan.png';
 import pemasaranIkan from '@/public/img/NelayanPemasaranIkan.png';
 import zonaTangkap from '@/public/img/NelayanZonaTangkap.png';
+import FishScanSection from '@/components/scan-ikan/FishScanSection';
 
 interface FeatureCard {
   id: string;
@@ -246,6 +247,9 @@ export default function DashboardNelayanPage() {
               </Link>
             ))}
           </div>
+
+          {/* Scan Kualitas Ikan */}
+          <FishScanSection />
         </div>
       </div>
 
