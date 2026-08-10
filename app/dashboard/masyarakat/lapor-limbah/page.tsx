@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { onAuthChange, getUserProfile } from '@/app/service/authentication';
 import WasteReportSection from '@/components/lapor-limbah/WasteReportSection';
+import MyReportList from '@/components/lapor-limbah/MyReportList';
 
 export default function LaporLimbahMasyarakatPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [uid, setUid] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthChange(async (user) => {
@@ -16,6 +18,7 @@ export default function LaporLimbahMasyarakatPage() {
         router.push('/login');
         return;
       }
+      setUid(user.uid);
       const profile = await getUserProfile(user.uid).catch(() => null);
       if (profile && profile.role && profile.role !== 'masyarakat') {
         const paths: Record<string, string> = {
@@ -75,16 +78,17 @@ export default function LaporLimbahMasyarakatPage() {
           </div>
 
           <div className="hidden sm:flex items-center gap-3">
-            <span className="px-3 py-1 rounded-full bg-emerald-400/15 text-emerald-200 border border-emerald-300/30 text-[10px] font-bold uppercase tracking-wider">
-              Validasi AI 3 Lapis
+            <span className="px-3 py-1 rounded-full bg-white/10 text-white border border-white/20 text-[10px] font-extrabold uppercase tracking-wider">
+              Validasi 3 Lapis
             </span>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 md:px-8 py-8">
+      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 md:px-8 py-8 space-y-8">
         <WasteReportSection />
+        <MyReportList uid={uid} />
       </main>
 
       {/* Footer */}

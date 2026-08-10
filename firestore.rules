@@ -11,7 +11,6 @@ service cloud.firestore {
 
     // Maritime telemetry cache: public BMKG data — open read/write so the
     // dashboard can always persist & restore the latest snapshot.
-    // Size guard prevents oversized payload abuse (1 MB Firestore doc limit).
     match /maritimeCache/{docId} {
       allow read: if true;
       allow write: if request.resource.data.size() < 1000000;
@@ -25,7 +24,6 @@ service cloud.firestore {
       function isOwner() {
         return signedIn() && request.auth.uid == resource.data.uid;
       }
-      // New records must belong to the creator and be well-formed.
       function validNew() {
         return request.auth.uid == request.resource.data.uid
           && request.resource.data.size() < 1000000
@@ -36,7 +34,6 @@ service cloud.firestore {
       }
       allow create: if signedIn() && validNew();
       allow read, delete: if isOwner();
-      // Owner can edit anything except transferring ownership.
       allow update: if isOwner() && request.resource.data.uid == resource.data.uid;
     }
 
@@ -61,9 +58,7 @@ service cloud.firestore {
       allow update: if isOwner() && request.resource.data.uid == resource.data.uid;
     }
 
-    // Fish quality prediction history (analisis kualitas ikan): per-user,
-    // same policy as riskAnalyses. Update allowed so verifications can be
-    // attached (verifications array) without transferring ownership.
+    // Fish quality prediction history (analisis kualitas ikan): per-user.
     match /fishQualityAnalyses/{docId} {
       function signedIn() {
         return request.auth != null;
@@ -104,9 +99,7 @@ service cloud.firestore {
       allow update: if isOwner() && request.resource.data.uid == resource.data.uid;
     }
 
-    // Waste verification feedback (sampah padat): anyone signed in can vote on a
-    // candidate (confirmed/rejected); stats are shared so accuracy is computed
-    // across all researchers.
+    // Waste verification feedback
     match /wasteFeedback/{docId} {
       function signedIn() {
         return request.auth != null;
@@ -125,6 +118,12 @@ service cloud.firestore {
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.verdict in ['confirmed', 'rejected'];
       allow delete: if signedIn() && request.auth.uid == resource.data.uid;
+    }
+
+    // Waste reports (Lapor Limbah Warga): open read and create so citizens can report and researchers can read.
+    match /wasteReports/{docId} {
+      allow read, create: if true;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.uid;
     }
   }
 }

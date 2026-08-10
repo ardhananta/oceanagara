@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from 'react';
 import type { WasteExifInfo, WasteLocationInfo, WasteType } from '@/app/types/maritime';
 import { parseExif, toWasteExif } from './exif';
+import LocationPickerMap from './LocationPickerMap';
 
 export const MAX_REPORT_PHOTOS = 3;
 
@@ -101,7 +102,7 @@ export default function WasteReportForm({ loading, onSubmit, onError }: WasteRep
   const [locating, setLocating] = useState(false);
   const [location, setLocation] = useState<WasteLocationInfo | null>(null);
   const [locError, setLocError] = useState<string | null>(null);
-  const [manualMode, setManualMode] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
   const [manualLat, setManualLat] = useState('');
   const [manualLon, setManualLon] = useState('');
 
@@ -110,17 +111,20 @@ export default function WasteReportForm({ loading, onSubmit, onError }: WasteRep
     setLocating(true);
     if (!navigator.geolocation) {
       setLocating(false);
-      setLocError('Perangkat tidak mendukung GPS. Masukkan koordinat manual.');
-      setManualMode(true);
+      setLocError('Perangkat tidak mendukung GPS. Masukkan koordinat manual atau tandai di peta.');
+      setShowMapPicker(true);
       return;
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setLocating(false);
-        setManualMode(false);
+        const lat = +pos.coords.latitude.toFixed(6);
+        const lon = +pos.coords.longitude.toFixed(6);
+        setManualLat(String(lat));
+        setManualLon(String(lon));
         setLocation({
-          lat: +pos.coords.latitude.toFixed(6),
-          lon: +pos.coords.longitude.toFixed(6),
+          lat,
+          lon,
           accuracyMeters: Math.round(pos.coords.accuracy),
           source: 'gps',
         });
@@ -130,13 +134,20 @@ export default function WasteReportForm({ loading, onSubmit, onError }: WasteRep
         const code = err && typeof err === 'object' && 'code' in err ? Number((err as { code?: number }).code) : 0;
         setLocError(
           code === 1
-            ? 'Izin lokasi ditolak. Aktifkan akses lokasi atau isi koordinat manual.'
-            : 'Gagal mendapatkan lokasi GPS. Isi koordinat manual atau coba lagi.'
+            ? 'Izin lokasi ditolak. Aktifkan akses lokasi atau tandai koordinat pada peta.'
+            : 'Gagal mendapatkan lokasi GPS. Tandai pada peta di bawah atau isi koordinat manual.'
         );
-        setManualMode(true);
+        setShowMapPicker(true);
       },
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
+  }, []);
+
+  const handleMapSelectLocation = useCallback((lat: number, lon: number) => {
+    setManualLat(String(lat));
+    setManualLon(String(lon));
+    setLocation({ lat, lon, accuracyMeters: null, source: 'manual' });
+    setLocError(null);
   }, []);
 
   const applyManual = () => {
@@ -194,8 +205,8 @@ export default function WasteReportForm({ loading, onSubmit, onError }: WasteRep
       return;
     }
     if (!location) {
-      setLocError('Lokasi pelaporan belum tersedia — aktifkan GPS atau isi koordinat manual.');
-      setManualMode(true);
+      setLocError('Lokasi pelaporan belum tersedia — gunakan GPS atau tandai titik pada peta.');
+      setShowMapPicker(true);
       return;
     }
     onSubmit({
@@ -209,7 +220,7 @@ export default function WasteReportForm({ loading, onSubmit, onError }: WasteRep
   };
 
   const inputCls =
-    'mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-zinc-300 text-xs font-semibold text-zinc-900 focus:outline-none focus:border-[#162e52] focus:ring-2 focus:ring-[#162e52]/20 bg-white placeholder:text-zinc-400 disabled:opacity-60 shadow-sm';
+    'mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-zinc-300 text-xs font-semibold text-zinc-900 focus:outline-none focus:border-[#162e52] focus:ring-1 focus:ring-[#162e52] bg-white placeholder:text-zinc-400 disabled:opacity-60 shadow-sm transition-all';
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -227,7 +238,7 @@ export default function WasteReportForm({ loading, onSubmit, onError }: WasteRep
               <img
                 src={src}
                 alt={`Foto limbah ${i + 1}`}
-                className="w-24 h-24 rounded-2xl object-cover border border-zinc-200 shadow-md"
+                className="w-24 h-24 rounded-xl object-cover border border-zinc-200 shadow-sm"
               />
               <button
                 type="button"
@@ -237,7 +248,7 @@ export default function WasteReportForm({ loading, onSubmit, onError }: WasteRep
                   setThumbs((t) => t.filter((_, k) => k !== i));
                   setExif(null);
                 }}
-                className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-md text-xs font-bold hover:bg-rose-700 transition-colors"
+                className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-zinc-800 hover:bg-rose-600 text-white flex items-center justify-center shadow-md text-xs font-bold transition-colors"
               >
                 ×
               </button>
@@ -248,17 +259,17 @@ export default function WasteReportForm({ loading, onSubmit, onError }: WasteRep
               type="button"
               onClick={() => photoInputRef.current?.click()}
               disabled={loading || drafting}
-              className="w-24 h-24 rounded-2xl border-2 border-dashed border-sky-300 hover:border-sky-500 bg-sky-50/60 hover:bg-sky-50 text-sky-800 flex flex-col items-center justify-center gap-1.5 transition-all duration-200 flex-shrink-0 disabled:opacity-60 shadow-sm"
+              className="w-24 h-24 rounded-xl border-2 border-dashed border-zinc-300 hover:border-[#162e52] bg-zinc-50 hover:bg-zinc-100 text-[#162e52] flex flex-col items-center justify-center gap-1.5 transition-colors flex-shrink-0 disabled:opacity-60 shadow-sm"
             >
               {drafting ? (
-                <span className="w-5 h-5 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
+                <span className="w-5 h-5 border-2 border-[#162e52] border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
-                  <svg className="w-6 h-6 text-sky-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                  <svg className="w-6 h-6 text-[#162e52]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0z" />
                   </svg>
-                  <span className="text-[9px] font-bold text-[#162e52]">Ambil / Pilih</span>
+                  <span className="text-[10px] font-extrabold text-[#162e52]">Upload Foto</span>
                 </>
               )}
             </button>
@@ -279,29 +290,40 @@ export default function WasteReportForm({ loading, onSubmit, onError }: WasteRep
         />
         {photoError && <p className="text-[10px] font-bold text-rose-600 mt-1.5">{photoError}</p>}
         <p className="text-[10px] text-zinc-500 font-medium leading-relaxed mt-1.5">
-          Metadata EXIF (GPS & waktu pengambilan) dibaca otomatis sebelum kompresi untuk validasi keaslian.
+          Metadata EXIF (GPS &amp; waktu pengambilan) dibaca otomatis sebelum kompresi untuk validasi keaslian.
         </p>
       </div>
 
       {/* Lokasi */}
-      <div className="rounded-2xl border border-sky-200/80 bg-sky-50/40 p-4 space-y-2.5 shadow-sm">
+      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 space-y-3 shadow-sm">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <label className="text-xs font-extrabold uppercase tracking-wider text-[#162e52]">
-            Lokasi Pelaporan (diambil saat memotret)
+            Lokasi Pelaporan
           </label>
-          {!manualMode && (
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={requestLocation}
               disabled={loading || locating}
-              className="text-[10px] font-extrabold text-sky-700 hover:text-sky-900 flex items-center gap-1 disabled:opacity-50"
+              className="text-[10px] font-extrabold text-[#162e52] hover:text-sky-900 flex items-center gap-1 disabled:opacity-50"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
               </svg>
-              Ambil Ulang
+              Ambil via GPS
             </button>
-          )}
+            <span className="text-zinc-300">|</span>
+            <button
+              type="button"
+              onClick={() => setShowMapPicker(!showMapPicker)}
+              className="text-[10px] font-extrabold text-[#162e52] hover:text-sky-900 flex items-center gap-1"
+            >
+              <svg className="w-3.5 h-3.5 text-[#162e52]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" />
+              </svg>
+              {showMapPicker ? 'Sembunyikan Peta' : 'Tandai di Peta'}
+            </button>
+          </div>
         </div>
 
         {locating ? (
@@ -310,77 +332,111 @@ export default function WasteReportForm({ loading, onSubmit, onError }: WasteRep
             <span className="text-xs font-semibold">Mengambil koordinat GPS perangkat…</span>
           </div>
         ) : location ? (
-          <div className="rounded-xl bg-emerald-50 border border-emerald-300 p-3 space-y-1 text-emerald-900 shadow-sm">
-            <p className="text-xs font-extrabold text-emerald-800 flex items-center gap-1.5">
-              <svg className="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="currentColor">
-                <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 0 0 .723 0l.028-.015.071-.041a16.975 16.975 0 0 0 1.144-.742 19.58 19.58 0 0 0 2.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 0 0-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 0 0 2.682 2.282 16.975 16.975 0 0 0 1.145.742ZM12 13.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" clipRule="evenodd" />
-              </svg>
-              Lokasi Terkunci
-            </p>
-            <p className="text-xs text-[#162e52] font-mono font-bold">
+          <div className="rounded-xl bg-white border border-zinc-300 p-3 space-y-1 text-zinc-900 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-extrabold text-[#162e52] flex items-center gap-1.5">
+                <svg className="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="currentColor">
+                  <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 0 0 .723 0l.028-.015.071-.041a16.975 16.975 0 0 0 1.144-.742 19.58 19.58 0 0 0 2.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 0 0-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 0 0 2.682 2.282 16.975 16.975 0 0 0 1.145.742ZM12 13.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" clipRule="evenodd" />
+                </svg>
+                Lokasi Terkunci ({location.source === 'gps' ? 'GPS' : 'Peta / Manual'})
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowMapPicker(!showMapPicker)}
+                className="text-[10px] font-extrabold text-[#162e52] hover:underline"
+              >
+                {showMapPicker ? 'Tutup Peta' : 'Ganti di Peta'}
+              </button>
+            </div>
+            <p className="text-xs text-[#162e52] font-mono font-black">
               {location.lat.toFixed(5)}, {location.lon.toFixed(5)}
             </p>
-            <p className="text-[10px] text-zinc-600 font-medium">
+            <p className="text-[10px] text-zinc-500 font-medium">
               {location.source === 'gps'
                 ? `GPS perangkat · akurasi ±${location.accuracyMeters} m`
-                : 'Koordinat input manual'}
+                : 'Koordinat ditandai di peta / manual'}
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={requestLocation}
-              disabled={loading || locating}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#162e52] hover:bg-[#1f4275] text-white text-xs font-extrabold uppercase tracking-wider transition-all shadow-md shadow-[#162e52]/20 disabled:opacity-50"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
-              </svg>
-              Gunakan Lokasi Saat Ini
-            </button>
-            <button
-              type="button"
-              onClick={() => setManualMode(true)}
-              disabled={loading}
-              className="w-full text-center text-xs font-bold text-sky-700 hover:text-sky-900 transition-colors underline underline-offset-2"
-            >
-              atau isi koordinat manual
-            </button>
-            {locError && <p className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 p-2.5 rounded-xl">{locError}</p>}
+          <div className="space-y-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={requestLocation}
+                disabled={loading || locating}
+                className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#162e52] hover:bg-[#1f4275] text-white text-xs font-extrabold uppercase tracking-wider transition-colors shadow-sm disabled:opacity-50"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                </svg>
+                Gunakan GPS Perangkat
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMapPicker(true)}
+                disabled={loading}
+                className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-900 text-white text-xs font-extrabold uppercase tracking-wider transition-colors shadow-sm"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" />
+                </svg>
+                Pilih Titik di Peta
+              </button>
+            </div>
+            {locError && <p className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 p-2.5 rounded-xl">{locError}</p>}
           </div>
         )}
 
-        {manualMode && (
-          <div className="grid grid-cols-2 gap-3 mt-3">
-            <div>
-              <label className="text-[10px] font-extrabold uppercase tracking-wider text-[#162e52]">Latitude</label>
-              <input
-                value={manualLat}
-                onChange={(e) => setManualLat(e.target.value)}
-                placeholder="-6.2124"
-                disabled={loading}
-                className={inputCls}
-              />
+        {/* Interactive Map Picker Section */}
+        {showMapPicker && (
+          <div className="space-y-3 pt-3 border-t border-zinc-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#162e52] flex items-center gap-1.5">
+                <svg className="w-4 h-4 text-[#162e52]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                </svg>
+                Tandai Lokasi di Peta
+              </span>
+              <span className="text-[10px] text-zinc-500 font-medium">Klik pada peta untuk memasang titik</span>
             </div>
-            <div>
-              <label className="text-[10px] font-extrabold uppercase tracking-wider text-[#162e52]">Longitude</label>
-              <input
-                value={manualLon}
-                onChange={(e) => setManualLon(e.target.value)}
-                placeholder="106.8456"
-                disabled={loading}
-                className={inputCls}
-              />
+
+            <LocationPickerMap
+              initialLat={location?.lat ?? (manualLat ? parseFloat(manualLat) : null)}
+              initialLon={location?.lon ?? (manualLon ? parseFloat(manualLon) : null)}
+              onSelectLocation={handleMapSelectLocation}
+            />
+
+            <div className="grid grid-cols-2 gap-3 mt-2">
+              <div>
+                <label className="text-[10px] font-extrabold uppercase tracking-wider text-[#162e52]">Latitude</label>
+                <input
+                  value={manualLat}
+                  onChange={(e) => setManualLat(e.target.value)}
+                  placeholder="-6.2124"
+                  disabled={loading}
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-extrabold uppercase tracking-wider text-[#162e52]">Longitude</label>
+                <input
+                  value={manualLon}
+                  onChange={(e) => setManualLon(e.target.value)}
+                  placeholder="106.8456"
+                  disabled={loading}
+                  className={inputCls}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={applyManual}
+                disabled={loading || !manualLat || !manualLon}
+                className="col-span-2 px-4 py-2.5 rounded-xl bg-[#162e52] hover:bg-[#1f4275] text-white text-xs font-extrabold uppercase tracking-wider transition-colors disabled:opacity-50 shadow-sm"
+              >
+                Terapkan Angka Koordinat Manual
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={applyManual}
-              disabled={loading || !manualLat || !manualLon}
-              className="col-span-2 px-4 py-2.5 rounded-xl bg-[#162e52] hover:bg-[#1f4275] text-white text-xs font-extrabold uppercase tracking-wider transition-colors disabled:opacity-50 shadow-sm"
-            >
-              Pakai Koordinat Manual
-            </button>
           </div>
         )}
       </div>
@@ -397,10 +453,10 @@ export default function WasteReportForm({ loading, onSubmit, onError }: WasteRep
               type="button"
               onClick={() => setWasteType(w.id)}
               disabled={loading}
-              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-xs transition-all duration-200 ${
+              className={`flex items-center gap-2.5 px-3.5 py-3 rounded-xl border text-xs transition-all ${
                 wasteType === w.id
-                  ? 'bg-[#162e52] text-white border-[#162e52] shadow-md shadow-[#162e52]/20 font-extrabold scale-[1.02]'
-                  : 'bg-white hover:bg-sky-50 text-zinc-700 border-zinc-200 hover:border-sky-300 font-bold shadow-sm'
+                  ? 'bg-[#162e52] text-white border-[#162e52] font-extrabold shadow-sm'
+                  : 'bg-white hover:bg-zinc-50 text-zinc-700 border-zinc-200 font-semibold shadow-sm'
               }`}
             >
               <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
@@ -431,12 +487,12 @@ export default function WasteReportForm({ loading, onSubmit, onError }: WasteRep
       <button
         type="submit"
         disabled={loading || photos.length === 0 || !location}
-        className="w-full px-5 py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-[#162e52] hover:from-emerald-500 hover:to-[#1f4275] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-emerald-700/25 flex items-center justify-center gap-2.5 cursor-pointer active:scale-[0.99]"
+        className="w-full px-5 py-3.5 bg-[#162e52] hover:bg-[#1f4275] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-extrabold uppercase tracking-wider rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2.5 cursor-pointer active:scale-[0.99]"
       >
         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
         </svg>
-        Kirim & Validasi Laporan
+        Kirim &amp; Validasi Laporan
       </button>
     </form>
   );

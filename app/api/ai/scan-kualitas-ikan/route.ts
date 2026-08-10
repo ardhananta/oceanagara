@@ -62,8 +62,8 @@ const HOLD_LABELS: Record<string, string> = {
   '>24': '> 24 jam',
 };
 
-/** Model vision utama & cadangan (konsisten dengan agent verifikasi tangkapan). */
-const VISION_MODELS = ['meta-llama/llama-4-maverick-17b-128e-instruct', 'qwen/qwen3.6-27b'];
+/** Model vision utama & cadangan (Groq free tier). */
+const VISION_MODELS = ['qwen/qwen3.6-27b'];
 
 const INDICATOR_META: Record<string, { name: string; scoreGood: number; scoreFair: number; scoreBad: number }> = {
   eyes: { name: 'Mata', scoreGood: 100, scoreFair: 60, scoreBad: 20 },
@@ -306,10 +306,10 @@ Analisis SETIAP detail fisik pada foto (mata, insang, sisik, lendir, tekstur dag
       storageAdvice: parsed.storageAdvice?.length
         ? asStrArr(parsed.storageAdvice, 4)
         : [
-            'Segera turunkan suhu ikan ke 0–4°C dengan es curai (rasio es:ikan minimal 1:1)',
-            'Bersihkan insang dan isi perut sebelum penyimpanan',
-            'Pisahkan hasil tangkapan dari paparan sinar matahari langsung',
-          ],
+          'Segera turunkan suhu ikan ke 0–4°C dengan es curai (rasio es:ikan minimal 1:1)',
+          'Bersihkan insang dan isi perut sebelum penyimpanan',
+          'Pisahkan hasil tangkapan dari paparan sinar matahari langsung',
+        ],
       risks: parsed.risks?.length ? asStrArr(parsed.risks, 3) : ['Pantau suhu simpan dan konsumsi cepat untuk hasil terbaik'],
     };
 

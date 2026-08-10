@@ -56,8 +56,8 @@ Aturan:
 - Bila foto tidak dapat dinilai karena kualitas buruk → genuine false dengan riskSigns menjelaskan.
 - Bahasa Indonesia profesional dan spesifik.`;
 
-/** Model vision utama & cadangan (konsisten dengan agent lain). */
-const VISION_MODELS = ['meta-llama/llama-4-maverick-17b-128e-instruct', 'qwen/qwen3.6-27b'];
+/** Model vision utama & cadangan (Groq free tier). */
+const VISION_MODELS = ['qwen/qwen3.6-27b'];
 
 const WASTE_TYPE_LABELS: Record<string, string> = {
   plastik: 'sampah plastik',
@@ -86,16 +86,22 @@ async function runCompletion(
   groq: Groq,
   body: Parameters<Groq['chat']['completions']['create']>[0]
 ): Promise<{ choices: { message?: { content?: string | null } }[] } | null> {
-  return groq.chat.completions
-    .create(body as never)
-    .catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
-      if (/413|429|rate_limit|Request too large|TPM|400/i.test(message)) {
-        console.warn('[ValidasiLaporanLimbah] Groq call failed, trying fallback:', message.slice(0, 200));
-        return null;
-      }
-      throw err;
-    }) as unknown as Promise<{ choices: { message?: { content?: string | null } }[] } | null>;
+  try {
+    return (await groq.chat.completions.create(body as never)) as unknown as { choices: { message?: { content?: string | null } }[] };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/json_validate_failed|400/i.test(message) && (body as { response_format?: unknown }).response_format) {
+      console.warn('[ValidasiLaporanLimbah] json_validate_failed, retrying without response_format constraint...');
+      const copy = { ...body };
+      delete (copy as { response_format?: unknown }).response_format;
+      return groq.chat.completions.create(copy as never).catch(() => null) as unknown as { choices: { message?: { content?: string | null } }[] } | null;
+    }
+    if (/413|429|rate_limit|Request too large|TPM|400/i.test(message)) {
+      console.warn('[ValidasiLaporanLimbah] Groq call failed:', message.slice(0, 200));
+      return null;
+    }
+    return null;
+  }
 }
 
 /** Jarak haversine antar koordinat (meter). */
@@ -337,10 +343,14 @@ Analisis keaslian foto, jenis & lingkungan limbah, lalu hasilkan JSON sesuai for
       }
 
       if (completion) {
-        const rawText = completion.choices[0]?.message?.content ?? '{}';
+        let rawText = completion.choices[0]?.message?.content ?? '{}';
+        if (rawText.includes('```')) {
+          rawText = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+        }
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
         let parsed: Record<string, unknown> = {};
         try {
-          parsed = JSON.parse(rawText) as Record<string, unknown>;
+          parsed = JSON.parse(jsonMatch ? jsonMatch[0] : rawText) as Record<string, unknown>;
         } catch {
           // JSON tidak valid → heuristik
         }

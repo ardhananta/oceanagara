@@ -4,10 +4,10 @@ import type { WasteReportEntry } from '@/app/service/wasteReports';
 import { formatReportDate, reportDisplayCode } from '@/app/service/wasteReports';
 
 const STATUS_META = {
-  verified: { label: 'Terverifikasi', cls: 'bg-emerald-100 text-emerald-800 border-emerald-300', col: '#059669' },
-  suspected: { label: 'Perlu Diuji', cls: 'bg-amber-100 text-amber-800 border-amber-300', col: '#f59e0b' },
-  rejected: { label: 'Ditolak', cls: 'bg-rose-100 text-rose-800 border-rose-300', col: '#ef4444' },
-  pending: { label: 'Belum Divalidasi', cls: 'bg-zinc-100 text-zinc-600 border-zinc-200', col: '#64748b' },
+  verified: { label: 'Terverifikasi', cls: 'bg-emerald-50 text-emerald-800 border-emerald-300', col: '#059669' },
+  suspected: { label: 'Perlu Diuji', cls: 'bg-amber-50 text-amber-800 border-amber-300', col: '#f59e0b' },
+  rejected: { label: 'Ditolak', cls: 'bg-rose-50 text-rose-800 border-rose-300', col: '#ef4444' },
+  pending: { label: 'Belum Divalidasi', cls: 'bg-zinc-100 text-zinc-700 border-zinc-200', col: '#64748b' },
 } as const;
 
 const WASTE_TYPE_LABELS: Record<string, string> = {
@@ -37,11 +37,11 @@ function CheckRow({
 }) {
   const dot = ok === 'ok' ? 'bg-emerald-500' : ok === 'warn' ? 'bg-amber-500' : 'bg-rose-500';
   const label = ok === 'ok' ? 'Lolos' : ok === 'warn' ? 'Perlu Dicermati' : 'Gagal';
-  const labelCls = ok === 'ok' ? 'text-emerald-700' : ok === 'warn' ? 'text-amber-700' : 'text-rose-700';
+  const labelCls = ok === 'ok' ? 'text-emerald-800' : ok === 'warn' ? 'text-amber-800' : 'text-rose-800';
   return (
-    <div className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-3">
+    <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-extrabold text-zinc-800 flex items-center gap-2">
+        <p className="text-[11px] font-extrabold text-zinc-900 flex items-center gap-2">
           <span className={`w-2 h-2 rounded-full ${dot}`} />
           {title}
         </p>
@@ -59,8 +59,8 @@ export default function ReportDetail({ report, isOwner, onDelete, onClose }: Rep
   const mapsUrl = `https://www.google.com/maps?q=${report.location.lat},${report.location.lon}`;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white border border-zinc-200 rounded-2xl max-w-2xl w-full p-6 relative space-y-4 shadow-2xl text-zinc-900 my-8">
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white border border-zinc-200 rounded-2xl max-w-2xl w-full p-6 relative space-y-4 shadow-xl text-zinc-900 my-8">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-900 p-2 rounded-lg hover:bg-zinc-100 transition-colors"
@@ -77,7 +77,7 @@ export default function ReportDetail({ report, isOwner, onDelete, onClose }: Rep
               {meta.label}
             </span>
             {v && (
-              <span className="text-[10px] font-bold text-zinc-500">
+              <span className="text-[10px] font-bold text-zinc-600 bg-zinc-100 border border-zinc-200 px-2.5 py-0.5 rounded-full">
                 Keyakinan {v.confidence}%{v.model ? ` · ${v.model.split('/')[0]}` : ''}
               </span>
             )}
@@ -92,7 +92,7 @@ export default function ReportDetail({ report, isOwner, onDelete, onClose }: Rep
           <p className="text-xs text-zinc-600 leading-relaxed mt-0.5">
             {report.description || 'Tanpa deskripsi tambahan.'}
           </p>
-          <p className="text-[10px] text-zinc-400 mt-1">
+          <p className="text-[10px] text-zinc-500 mt-1 font-medium">
             Dilaporkan oleh {report.reporterName} · {formatReportDate(report.createdAt)}
           </p>
         </div>
@@ -114,9 +114,9 @@ export default function ReportDetail({ report, isOwner, onDelete, onClose }: Rep
         {/* Ringkasan validasi */}
         {v ? (
           <div className="space-y-3">
-            <div className="rounded-xl border-l-4 bg-zinc-50 p-3" style={{ borderColor: meta.col }}>
+            <div className="rounded-xl border-l-4 bg-zinc-50 p-3 border-zinc-300">
               <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Ringkasan Validasi</p>
-              <p className="text-[11px] text-zinc-700 leading-relaxed">{v.summary}</p>
+              <p className="text-xs text-zinc-800 font-medium leading-relaxed">{v.summary}</p>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-2.5">
@@ -135,9 +135,9 @@ export default function ReportDetail({ report, isOwner, onDelete, onClose }: Rep
                 ok={v.timestampCheck.verdict === 'valid' ? 'ok' : v.timestampCheck.verdict === 'drifted' ? 'fail' : 'warn'}
                 note={v.timestampCheck.note}
               />
-              <div className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-3">
-                <p className="text-[11px] font-extrabold text-zinc-800 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-sky-500" />
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                <p className="text-[11px] font-extrabold text-zinc-900 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-[#162e52]" />
                   Jenis Terdeteksi AI
                 </p>
                 <p className="text-[10px] text-zinc-600 leading-relaxed mt-1.5">
@@ -147,22 +147,22 @@ export default function ReportDetail({ report, isOwner, onDelete, onClose }: Rep
             </div>
 
             {v.timestampCheck.photoTime && (
-              <p className="text-[9px] text-zinc-400 font-mono">
+              <p className="text-[9px] text-zinc-500 font-mono">
                 Waktu EXIF foto: {new Date(v.timestampCheck.photoTime).toLocaleString('id-ID')}
               </p>
             )}
           </div>
         ) : (
-          <p className="text-[10px] text-zinc-400 italic">Laporan belum melalui validasi AI.</p>
+          <p className="text-[10px] text-zinc-500 italic">Laporan belum melalui validasi AI.</p>
         )}
 
         {/* Lokasi */}
-        <div className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-3.5 space-y-1">
-          <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">Koordinat Pelapor</p>
-          <p className="text-[11px] font-mono font-bold text-zinc-800">
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3.5 space-y-1">
+          <p className="text-[9px] font-extrabold uppercase tracking-widest text-[#162e52]">Koordinat Pelapor</p>
+          <p className="text-[11px] font-mono font-bold text-zinc-900">
             {report.location.lat.toFixed(6)}, {report.location.lon.toFixed(6)}
           </p>
-          <p className="text-[9px] text-zinc-500">
+          <p className="text-[9px] text-zinc-500 font-medium">
             {report.location.source === 'gps'
               ? `GPS perangkat saat memotret${report.location.accuracyMeters ? ` · akurasi ±${report.location.accuracyMeters} m` : ''}`
               : 'Koordinat input manual'}
@@ -172,7 +172,7 @@ export default function ReportDetail({ report, isOwner, onDelete, onClose }: Rep
             href={mapsUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 text-[10px] font-bold text-sky-700 hover:text-sky-900 mt-1"
+            className="inline-flex items-center gap-1.5 text-[10px] font-bold text-[#162e52] hover:underline mt-1"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />

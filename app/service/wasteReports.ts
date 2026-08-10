@@ -51,11 +51,47 @@ function sanitize<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+const LOCAL_CACHE_KEY = 'oceanagara_waste_reports_cache_v1';
+
+function getLocalCache(): WasteReportEntry[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(LOCAL_CACHE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveToLocalCache(entry: WasteReportEntry) {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = getLocalCache();
+    const updated = [entry, ...current.filter((r) => r.id !== entry.id && r.reportKey !== entry.reportKey)].slice(0, 100);
+    localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(updated));
+  } catch {
+    // Ignore quota errors
+  }
+}
+
 /** Simpan laporan; bila laporan identik sudah ada dalam sebulan terakhir, lewati. */
 export async function saveWasteReport(
   uid: string,
   payload: Omit<WasteReportEntry, 'id' | 'uid' | 'createdAt'>
 ): Promise<WasteReportSaveResult> {
+  const sanitizedDoc = {
+    uid,
+    reporterName: payload.reporterName,
+    location: sanitize(payload.location),
+    wasteType: payload.wasteType,
+    description: payload.description,
+    photoThumbs: sanitize(payload.photoThumbs),
+    capturedAt: payload.capturedAt || new Date().toISOString(),
+    exif: sanitize(payload.exif ?? null),
+    validation: sanitize(payload.validation),
+    reportKey: payload.reportKey || undefined,
+  };
+
   try {
     if (payload.reportKey) {
       const existing = await getDocs(
@@ -65,40 +101,82 @@ export async function saveWasteReport(
           where('reportKey', '==', payload.reportKey),
           limit(1)
         )
-      );
-      if (!existing.empty) {
-        return { id: existing.docs[0].id, duplicate: true };
+      ).catch(() => null);
+      if (existing && !existing.empty) {
+        const id = existing.docs[0].id;
+        saveToLocalCache({ id, ...sanitizedDoc, createdAt: new Date().toISOString() });
+        return { id, duplicate: true };
       }
     }
+
     const ref = await addDoc(collection(db, 'wasteReports'), {
-      uid,
-      reporterName: payload.reporterName,
-      location: sanitize(payload.location),
-      wasteType: payload.wasteType,
-      description: payload.description,
-      photoThumbs: sanitize(payload.photoThumbs),
-      capturedAt: payload.capturedAt,
-      exif: sanitize(payload.exif ?? null),
-      validation: sanitize(payload.validation),
-      reportKey: payload.reportKey ?? null,
+      ...sanitizedDoc,
       createdAt: serverTimestamp(),
     });
+
+    const entry: WasteReportEntry = {
+      id: ref.id,
+      ...sanitizedDoc,
+      createdAt: new Date().toISOString(),
+    };
+    saveToLocalCache(entry);
+
     return { id: ref.id, duplicate: false };
   } catch (err) {
-    console.warn('saveWasteReport failed (Firestore unavailable):', err);
-    throw err;
+    console.warn('saveWasteReport Firestore write warning, caching locally:', err);
+    const tempId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const entry: WasteReportEntry = {
+      id: tempId,
+      ...sanitizedDoc,
+      createdAt: new Date().toISOString(),
+    };
+    saveToLocalCache(entry);
+    return { id: tempId, duplicate: false };
   }
 }
 
 /** Ambil laporan terbaru (untuk peneliti — semua pelapor). */
 export async function loadWasteReports(max = 100): Promise<WasteReportEntry[]> {
+  const localItems = getLocalCache();
   try {
-    const q = query(collection(db, 'wasteReports'), orderBy('createdAt', 'desc'), limit(max));
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as WasteReportEntry);
+    let snap;
+    try {
+      const q = query(collection(db, 'wasteReports'), orderBy('createdAt', 'desc'), limit(max));
+      snap = await getDocs(q);
+    } catch {
+      // Fallback bila query orderBy gagal / belum ber-indeks
+      const qFallback = query(collection(db, 'wasteReports'), limit(max));
+      snap = await getDocs(qFallback);
+    }
+
+    const remoteItems = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as WasteReportEntry);
+    const combinedMap = new Map<string, WasteReportEntry>();
+
+    // Masukkan remote dulu
+    remoteItems.forEach((item) => combinedMap.set(item.id, item));
+    // Masukkan local (bila belum ada di remote)
+    localItems.forEach((item) => {
+      if (!combinedMap.has(item.id)) {
+        combinedMap.set(item.id, item);
+      }
+    });
+
+    const resultList = Array.from(combinedMap.values());
+
+    return resultList.sort((a, b) => {
+      const getTime = (val: unknown) => {
+        if (!val) return 0;
+        if (typeof val === 'object' && 'seconds' in (val as Record<string, unknown>)) {
+          return (val as { seconds: number }).seconds * 1000;
+        }
+        const parsed = new Date(String(val)).getTime();
+        return isNaN(parsed) ? 0 : parsed;
+      };
+      return getTime(b.createdAt || b.capturedAt) - getTime(a.createdAt || a.capturedAt);
+    }).slice(0, max);
   } catch (err) {
-    console.warn('loadWasteReports failed (Firestore unavailable):', err);
-    return [];
+    console.warn('loadWasteReports using local cache fallback:', err);
+    return localItems.slice(0, max);
   }
 }
 
