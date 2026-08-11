@@ -101,12 +101,13 @@ function buildHeuristicAnalysis(analysis: FishingZoneAnalysis): FishingAiAnalysi
 
 export async function POST(req: NextRequest) {
   try {
-    const { analysis } = (await req.json()) as { analysis?: FishingZoneAnalysis };
+    const { analysis, userRole } = (await req.json()) as { analysis?: FishingZoneAnalysis; userRole?: string };
 
     if (!analysis || !Array.isArray(analysis.zones)) {
       return NextResponse.json({ error: 'analysis dengan zones diperlukan' }, { status: 400 });
     }
 
+    const isTraditional = userRole === 'nelayan_tradisional';
     const groq = getGroqClient();
 
     if (!groq) {
@@ -143,6 +144,9 @@ export async function POST(req: NextRequest) {
       : null;
 
     const dataContext = `
+KONTEKS SIKAP / PERAN USER:
+${isTraditional ? '- PERAN: NELAYAN TRADISIONAL (Kapal kecil, Melaut Singkat / Short Trip). Jangkauan operasional ideal terbatas dalam radius 2 hingga 6 mil laut (3.7 - 11.1 km) dari garis pantai, dengan waktu tempuh berkisar antara 30 menit hingga 3 jam sekali jalan. Prioritaskan zona tangkap di dalam radius 2 - 6 mil laut ini yang paling efisien BBM dan aman untuk perjalanan pergi-pulang hari yang sama.' : '- PERAN: NELAYAN MODERN / PENELITI (Jangkauan bebas/lebar).'}
+
 KONTEKS WILAYAH:
 - Tanggal citra: ${analysis.date}
 - Zona aman: ${analysis.zones.length} (${analysis.rejectedZones} ditolak karena kontaminasi, ${analysis.avoidedCount} titik kontaminasi dihindari)
@@ -157,7 +161,8 @@ Ringkasan otomatis: ${analysis.summary}
 
 Analisis data di atas dan hasilkan JSON sesuai format yang diminta.
 **Prioritaskan rekomendasi zona dengan skor tertinggi + bukti aktivitas kapal GFW (hotspot & heading) + pergerakan kawanan (movementLabel).**
-Beri gfwSuggestion yang SPESIFIK: sebutkan koordinat hotspot kapal, arah heading dominan, dan implikasinya pada pemilihan zona (kapal penangkap komersial berkumpul = indikator lokasi migrasi ikan komersial).`;
+${isTraditional ? 'Berikan rekomendasi yang berfokus pada zona pesisir di radius 2-6 mil laut (waktu tempuh 30 menit - 3 jam sekali jalan) yang paling efisien BBM untuk Short Trip perahu tradisional.' : ''}
+Beri gfwSuggestion yang SPESIFIK: sebutkan koordinat hotspot kapal, arah heading dominan, dan implikasinya pada pemilihan zona.`;
 
     const completion = await groq.chat.completions
       .create({

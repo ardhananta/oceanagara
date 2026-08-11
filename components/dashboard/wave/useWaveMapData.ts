@@ -15,7 +15,7 @@ export interface WaveMapData {
   isLoading: boolean;
   isRefreshing: boolean;
   fetchError: boolean;
-  refreshAll: () => Promise<void>;
+  refreshAll: (force?: boolean) => Promise<void>;
 }
 
 export function useWaveMapData(): WaveMapData {
@@ -32,11 +32,15 @@ export function useWaveMapData(): WaveMapData {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [fetchError, setFetchError] = useState(false);
 
-  const refreshAll = useCallback(async () => {
+  const refreshAll = useCallback(async (force = false) => {
     setIsRefreshing(true);
     setIsLoading(false);
 
-    const [regionResult, windResult] = await Promise.all([fetchRegionWaveData(), fetchWindField()]);
+    const [regionResult, windResult] = await Promise.all([
+      fetchRegionWaveData(force),
+      fetchWindField(force),
+    ]);
+
     setRegionPoints(regionResult.points);
     setFetchError(regionResult.allFailed);
     if (windResult.grid && windResult.meta) {
@@ -86,7 +90,7 @@ export function useWaveMapData(): WaveMapData {
 
   // Initial load
   useEffect(() => {
-    const timer = setTimeout(() => refreshAll(), 0);
+    const timer = setTimeout(() => refreshAll(false), 0);
     return () => clearTimeout(timer);
   }, [refreshAll]);
 
@@ -96,7 +100,7 @@ export function useWaveMapData(): WaveMapData {
       countdownRef.current -= 1;
       if (countdownRef.current <= 0) {
         countdownRef.current = AUTO_REFRESH_MS / 1000;
-        refreshAll();
+        refreshAll(false);
       }
       setAutoRefreshCountdown(countdownRef.current);
     }, 1000);

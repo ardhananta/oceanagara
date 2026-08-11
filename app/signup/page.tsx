@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { registerWithEmail, loginWithGoogle, onAuthChange, redirectUserIfLoggedIn } from '@/app/service/authentication';
+import { registerWithEmail, loginWithGoogle, onAuthChange, redirectUserIfLoggedIn, checkGoogleRedirectResult } from '@/app/service/authentication';
 
 const passwordStrength = (pw: string): 0 | 1 | 2 | 3 => {
   if (pw.length === 0) return 0;
@@ -27,8 +27,14 @@ export default function SignupPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState<'email' | 'google' | null>(null);
 
-  // Redirect if already logged in
+  // Redirect if already logged in or process redirect auth result
   useEffect(() => {
+    checkGoogleRedirectResult().then((res) => {
+      if (res) {
+        router.push(res.redirectTo);
+      }
+    });
+
     const unsubscribe = onAuthChange((user) => {
       if (user) {
         redirectUserIfLoggedIn(user.uid, router.push);

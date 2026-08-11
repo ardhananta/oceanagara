@@ -100,15 +100,12 @@ export async function getBaserunCandidates(): Promise<string[]> {
     const res = await fetch('https://maritim.bmkg.go.id/pusmar/api23/modelrun', {
       headers: { Accept: 'application/json, text/plain' },
       cache: 'no-store',
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(3_000),
     });
     if (res.ok) {
       const parsed = parseBmkgStringJson(await res.text());
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         const obj = parsed as Record<string, unknown>;
-        // Only runs backed by w3g_hires netcdf files are valid for the wave
-        // endpoints — `inaflows` runs return 404. `inawaves` may disappear
-        // from the payload, so also accept `w3g_hires`.
         const runs = [
           ...(Array.isArray(obj.inawaves) ? obj.inawaves : []),
           ...(Array.isArray(obj.w3g_hires) ? obj.w3g_hires : []),
@@ -123,18 +120,20 @@ export async function getBaserunCandidates(): Promise<string[]> {
     // ignore — fall back to calculated runs
   }
 
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 2; i++) {
     const d = new Date(Date.now() - i * 86_400_000);
     const base = `${d.getUTCFullYear()}${pad2(d.getUTCMonth() + 1)}${pad2(d.getUTCDate())}`;
-    for (const hh of ['0000', '1200']) {
+    for (const hh of ['1200', '0000']) {
       const b = `${base}${hh}`;
       if (!candidates.includes(b)) candidates.push(b);
     }
   }
 
-  baserunCacheValue = candidates;
+  // Limit to at most 3 candidate runs to prevent long probing loops
+  const finalCandidates = candidates.slice(0, 3);
+  baserunCacheValue = finalCandidates;
   baserunCacheFetchedAt = Date.now();
-  return candidates;
+  return finalCandidates;
 }
 
 /** Derive true grid dims from bounds/resolution; null if it doesn't match the payload length */
@@ -178,13 +177,13 @@ function cachedFetchInawavesRaw(param: string, baserun: string): Promise<unknown
   });
 }
 
-/** Fetch raw param array for a baserun; null on any failure */
+/** Fetch raw param array for a baserun; null on any failure (3s timeout max) */
 async function fetchInawavesRaw(param: string, baserun: string): Promise<unknown[] | null> {
   try {
     const url = `https://maritim.bmkg.go.id/pusmar/api23/arr_req/inawaves/${param}/${baserun}/${baserun}`;
     const res = await fetch(url, {
       cache: 'no-store',
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(3_000),
     });
     if (!res.ok) return null;
     const parsed = parseBmkgStringJson(await res.text());

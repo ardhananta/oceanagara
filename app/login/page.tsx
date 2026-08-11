@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { loginWithEmail, loginWithGoogle, onAuthChange, redirectUserIfLoggedIn } from '@/app/service/authentication';
+import { loginWithEmail, loginWithGoogle, onAuthChange, redirectUserIfLoggedIn, checkGoogleRedirectResult } from '@/app/service/authentication';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,8 +14,14 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState<'email' | 'google' | null>(null);
 
-  // Redirect if already logged in
+  // Redirect if already logged in or process redirect auth result
   useEffect(() => {
+    checkGoogleRedirectResult().then((res) => {
+      if (res) {
+        router.push(res.redirectTo);
+      }
+    });
+
     const unsubscribe = onAuthChange((user) => {
       if (user) {
         redirectUserIfLoggedIn(user.uid, router.push);

@@ -109,13 +109,9 @@ export default function DashboardPenelitiPage() {
     return () => unsubscribe();
   }, [router]);
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-      router.push('/login');
-    } catch (err) {
-      console.error('Logout failed:', err);
-    }
+  const handleLogout = () => {
+    logout();
+    router.push('/login');
   };
 
   if (loading) {

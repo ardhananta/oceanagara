@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import type { User } from 'firebase/auth';
-import { onAuthChange, saveUserProfile } from '@/app/service/authentication';
+import { onAuthChange, saveUserProfile, getUserProfile, redirectUserIfLoggedIn } from '@/app/service/authentication';
 import { WILAYAH_INDONESIA } from '@/app/service/regions';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -102,9 +102,18 @@ export default function FillFormPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const unsub = onAuthChange((u) => {
-      if (!u) router.push('/login');
-      else setUser(u);
+    const unsub = onAuthChange(async (u) => {
+      if (!u) {
+        router.push('/login');
+        return;
+      }
+      setUser(u);
+      // Security Guard: Prevent user who already filled profile from accessing form again
+      const profile = await getUserProfile(u.uid);
+      if (profile && profile.profileCompleted && profile.role) {
+        redirectUserIfLoggedIn(u.uid, router.push);
+        return;
+      }
       setAuthLoading(false);
     });
     return () => unsub();

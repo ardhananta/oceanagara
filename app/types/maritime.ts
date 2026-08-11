@@ -262,6 +262,8 @@ export interface FishingZone {
   movementLabel: string;
   /** Jarak ke pantai terdekat (km) */
   coastKm: number;
+  /** Jarak ke pantai terdekat dalam Mil Laut (NMi) */
+  coastNmi?: number;
   /** Jumlah kapal penangkap (GFW fishing/loitering) dalam radius 30 km dari zona */
   nearbyVessels?: number;
   /** Heading dominan kapal di sekitar zona (°, 0=N) — arah migrasi ikan komersial */
