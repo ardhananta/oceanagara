@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -34,7 +35,13 @@ export default function Navbar() {
               : 'text-white'
             }`}
         >
-          OCEANAGARA
+          <Image
+          src="/img/logo2.svg"
+          alt="OCEANAGARA"
+          width={50}
+          height={50}
+          priority
+        />
         </a>
 
         {/* Desktop Nav Items */}

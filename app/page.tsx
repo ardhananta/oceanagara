@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { onAuthChange, redirectUserIfLoggedIn } from "@/app/service/authentication";
 import HeroSection from "@/components/HeroSection";
 import Features from "@/components/Features";
+import OceanAnalysis from "@/components/OceanAnalysis";
 import AboutUs from "@/components/AboutUs";
 import Footer from "@/components/Footer";
 
@@ -43,6 +44,9 @@ export default function Home() {
       <main className="flex-grow">
         {/* Features list (Cerdas Memantau, Aman Berlayar, Mutu Terjaga) */}
         <Features />
+
+        {/* Ocean condition analysis with NRT charts */}
+        <OceanAnalysis />
 
         {/* Detailed About Us info */}
         <AboutUs />

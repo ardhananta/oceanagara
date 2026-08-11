@@ -5,9 +5,9 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { onAuthChange, logout, getUserProfile, UserProfile } from '@/app/service/authentication';
-import kualitasIkan from '@/public/img/MasyarakatKualitasIkan.png';
-import pengolahanIkan from '@/public/img/MasyarakatPengolahanIkan.png';
-import airLaut from '@/public/img/MasyarakatAirLaut.png';
+import kualitasIkan from '@/public/img/MasyarakatKualitasIkan.webp';
+import pengolahanIkan from '@/public/img/MasyarakatPengolahanIkan.webp';
+import airLaut from '@/public/img/MasyarakatAirLaut.webp';
 
 interface FeatureCard {
   id: string;

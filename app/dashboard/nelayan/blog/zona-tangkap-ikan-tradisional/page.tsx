@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { onAuthChange, getUserProfile } from '@/app/service/authentication';
-import heroImg from '@/public/img/NelayanZonaTangkap.png';
+import heroImg from '@/public/img/NelayanZonaTangkap.webp';
 
 function LoadingScreen() {
   return (

@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { onAuthChange, getUserProfile } from '@/app/service/authentication';
-import heroImg from '@/public/img/MasyarakatAirLaut.png';
+import heroImg from '@/public/img/MasyarakatAirLaut.webp';
 import articleImg from '@/public/img/ocean_water_quality.png';
-import relatedImg1 from '@/public/img/MasyarakatKualitasIkan.png';
-import relatedImg2 from '@/public/img/MasyarakatPengolahanIkan.png';
+import relatedImg1 from '@/public/img/MasyarakatKualitasIkan.webp';
+import relatedImg2 from '@/public/img/MasyarakatPengolahanIkan.webp';
 
 const PARAMETERS = [
   {

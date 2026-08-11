@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { onAuthChange, logout, getUserProfile, UserProfile } from '@/app/service/authentication';
-import pemeliharaanIkan from '@/public/img/NelayanPemeliharaanIkan.png';
-import pemasaranIkan from '@/public/img/NelayanPemasaranIkan.png';
-import zonaTangkap from '@/public/img/NelayanZonaTangkap.png';
+import pemeliharaanIkan from '@/public/img/NelayanPemeliharaanIkan.webp';
+import pemasaranIkan from '@/public/img/NelayanPemasaranIkan.webp';
+import zonaTangkap from '@/public/img/NelayanZonaTangkap.webp';
 
 interface FeatureCard {
   id: string;
