@@ -16,6 +16,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Oceanagara - Cerdas Memantau, Aman Berlayar, Mutu Terjaga",
   description: "Platform Oceanagara untuk pemantauan cerdas, pelayaran aman, dan mutu tangkapan terjaga bagi nelayan Indonesia.",
+  icons: {
+    icon: [
+      { url: "/icon.png?v=5", type: "image/png" },
+      { url: "/icon.svg?v=5", type: "image/svg+xml" },
+    ],
+    shortcut: "/icon.png?v=5",
+    apple: "/icon.png?v=5",
+  },
 };
 
 export default function RootLayout({

@@ -109,13 +109,9 @@ export default function DashboardPenelitiPage() {
     return () => unsubscribe();
   }, [router]);
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-      router.push('/login');
-    } catch (err) {
-      console.error('Logout failed:', err);
-    }
+  const handleLogout = () => {
+    logout();
+    router.push('/login');
   };
 
   if (loading) {
@@ -283,6 +279,34 @@ export default function DashboardPenelitiPage() {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* ── CTA: Laporan Limbah Warga ── */}
+          <div className="mt-6">
+            <button
+              onClick={() => router.push('/dashboard/peneliti/laporan-limbah')}
+              className="group w-full text-left flex items-center justify-between gap-4 p-5 rounded-2xl bg-[#162e52] hover:bg-[#1f3f6e] border border-[#25497d] shadow-md transition-all duration-200"
+            >
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-11 h-11 rounded-xl bg-white/10 text-white border border-white/20 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-extrabold text-white leading-tight">Laporan Limbah Warga</p>
+                  <p className="text-[11px] text-sky-100/90 font-medium mt-0.5">
+                    Tinjau foto limbah yang dilaporkan warga — tervalidasi 3 lapis (keaslian foto, GPS &amp; waktu EXIF) dengan peta sebaran
+                  </p>
+                </div>
+              </div>
+              <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-white bg-white/10 px-3 py-1.5 rounded-xl border border-white/20 flex-shrink-0 group-hover:bg-white/20 transition-all">
+                Lihat Laporan
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                </svg>
+              </span>
+            </button>
           </div>
 
           {/* ── BMKG Wave Monitoring Map Widget ── */}

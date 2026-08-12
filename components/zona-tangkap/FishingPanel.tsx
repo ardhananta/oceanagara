@@ -4,11 +4,19 @@ import { useState } from 'react';
 import type { FishingZone, FishingZoneAnalysis } from '@/app/types/maritime';
 import { bearingDeg, cardinalFromBearing, formatKm, haversineKm, type GeoPoint } from '@/components/peta-risiko/distances';
 
+export interface VesselInfo {
+  namaKapal?: string;
+  jenisKapal?: string;
+  ukuranKapal?: string;
+  wilayahOperasi?: string;
+}
+
 interface FishingPanelProps {
   analysis: FishingZoneAnalysis;
   onReset: () => void;
   departure?: { lat: number; lon: number } | null;
   targetZone?: FishingZone | null;
+  vesselInfo?: VesselInfo | null;
 }
 
 const scoreColor = (score: number): string => {
@@ -21,62 +29,99 @@ const scoreColor = (score: number): string => {
 function NavigationCard({
   departure,
   targetZone,
+  vesselInfo,
 }: {
   departure: GeoPoint;
   targetZone: FishingZone;
+  vesselInfo?: VesselInfo | null;
 }) {
-  const [speedKn, setSpeedKn] = useState(8);
+  const boatName = vesselInfo?.namaKapal || 'Perahu Motor Tempel';
+  const boatType = vesselInfo?.jenisKapal ? `${vesselInfo.jenisKapal} (${vesselInfo.ukuranKapal || '< 5 GT'})` : '< 5 GT';
+
+  // Determine initial speed for traditional outboard motor boat (~5 Knots)
+  const initialSpeed = 5;
+  const [speedKn, setSpeedKn] = useState(initialSpeed);
 
   const distKm = haversineKm(departure, { lat: targetZone.lat, lon: targetZone.lon });
+  const distNmi = (distKm / 1.852).toFixed(1);
   const bearing = bearingDeg(departure, { lat: targetZone.lat, lon: targetZone.lon });
   const cardinal = cardinalFromBearing(bearing);
   const etaHours = distKm / (speedKn * 1.852);
   const etaLabel =
     etaHours < 1
-      ? `${Math.max(1, Math.round(etaHours * 60))} mnt`
-      : `${Math.floor(etaHours)} j ${Math.round((etaHours % 1) * 60)} mnt`;
+      ? `${Math.max(1, Math.round(etaHours * 60))} Menit`
+      : `${Math.floor(etaHours)} Jam ${Math.round((etaHours % 1) * 60)} Menit`;
+
+  // Perkiraan konsumsi BBM (~0.35 Liter per km untuk perahu nelayan)
+  const estFuelLiters = (distKm * 0.35).toFixed(1);
+  const isIdealRadius = Number(distNmi) >= 2 && Number(distNmi) <= 6;
 
   return (
-    <div className="bg-gradient-to-br from-sky-700 to-[#0c4a6e] rounded-2xl p-4 text-white shadow-lg border border-sky-500/40">
-      <div className="flex items-center gap-2 mb-2.5">
-        <span className="w-2 h-2 rounded-full bg-sky-300 animate-pulse" />
-        <span className="text-[10px] font-extrabold uppercase tracking-widest text-sky-200">
-          Navigasi Menuju Zona
+    <div className="bg-[#0c2d52] rounded-2xl p-5 text-white border border-zinc-700 space-y-4">
+      {/* Vessel Profile Header */}
+      <div className="flex items-center justify-between border-b border-white/15 pb-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-[#163e6e] flex items-center justify-center text-sky-300">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L12 3l9.75 15M2.25 18h19.5" />
+            </svg>
+          </div>
+          <div>
+            <span className="text-xs font-extrabold text-sky-200 uppercase tracking-wider block">Kapal Nelayan Anda</span>
+            <h4 className="text-sm font-extrabold text-white">{boatName} <span className="text-xs font-normal text-sky-200">({boatType})</span></h4>
+          </div>
+        </div>
+        <span className="px-2.5 py-1 bg-emerald-700 border border-emerald-400 text-white text-xs font-extrabold rounded-lg uppercase">
+          Short Trip (2–6 Mil Laut)
         </span>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 mb-2.5">
-        <div className="rounded-xl bg-white/10 border border-white/15 p-2.5">
-          <p className="text-[8px] font-bold uppercase tracking-wider text-sky-300 mb-0.5">Jarak</p>
+      {/* Metric Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <div className="rounded-xl bg-white/10 border border-white/15 p-3">
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-sky-300 mb-0.5">Jarak Tempuh</p>
           <p className="text-sm font-extrabold tabular-nums">{formatKm(distKm)} km</p>
+          <p className="text-[10px] font-bold text-sky-200">{distNmi} Mil Laut</p>
         </div>
-        <div className="rounded-xl bg-white/10 border border-white/15 p-2.5">
-          <p className="text-[8px] font-bold uppercase tracking-wider text-sky-300 mb-0.5">Arah</p>
-          <p className="text-sm font-extrabold tabular-nums">{cardinal} <span className="text-[10px] font-bold text-sky-200">({Math.round(bearing)}°)</span></p>
+        <div className="rounded-xl bg-white/10 border border-white/15 p-3">
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-sky-300 mb-0.5">Arah Kompas</p>
+          <p className="text-base font-extrabold tabular-nums">{cardinal} <span className="text-xs font-bold text-sky-200">({Math.round(bearing)}°)</span></p>
         </div>
-        <div className="rounded-xl bg-white/10 border border-white/15 p-2.5">
-          <p className="text-[8px] font-bold uppercase tracking-wider text-sky-300 mb-0.5">ETA ({speedKn} kn)</p>
-          <p className="text-sm font-extrabold tabular-nums">{etaLabel}</p>
+        <div className="rounded-xl bg-white/10 border border-white/15 p-3">
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-sky-300 mb-0.5">Waktu Tempuh</p>
+          <p className="text-base font-extrabold tabular-nums text-emerald-300">{etaLabel}</p>
+          <p className="text-[9px] text-sky-200">Sekali Jalan</p>
+        </div>
+        <div className="rounded-xl bg-white/10 border border-white/15 p-3">
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-sky-300 mb-0.5">Perkiraan BBM</p>
+          <p className="text-base font-extrabold tabular-nums text-amber-300">± {estFuelLiters} L</p>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <span className="text-[9px] font-bold uppercase tracking-wider text-sky-200">Kecepatan</span>
+      <div className="flex items-center gap-3 pt-1">
+        <span className="text-xs font-bold uppercase tracking-wider text-sky-200">Kecepatan Kapal</span>
         <input
           type="range"
           min={3}
-          max={20}
+          max={18}
           value={speedKn}
           onChange={(e) => setSpeedKn(Number(e.target.value))}
-          className="flex-1 accent-sky-300"
+          className="flex-1 accent-sky-300 h-2 bg-white/20 rounded-lg cursor-pointer"
         />
-        <span className="text-[10px] font-bold tabular-nums text-sky-100 w-8 text-right">{speedKn} kn</span>
+        <span className="text-xs font-bold tabular-nums text-sky-100 bg-white/15 px-2 py-1 rounded-md">{speedKn} Knots</span>
       </div>
 
-      <p className="text-[9px] text-sky-100/80 leading-relaxed mt-2.5">
-        Dari ({departure.lat.toFixed(4)}, {departure.lon.toFixed(4)}) menuju zona terbaik (
-        {targetZone.lat.toFixed(4)}, {targetZone.lon.toFixed(4)}). Garis biru putus-putus di peta = rute langsung.
-      </p>
+      <div className="p-3 bg-white/10 border border-white/15 rounded-xl space-y-1 text-xs">
+        <div className="flex items-center justify-between text-sky-200 font-extrabold uppercase tracking-wider text-[11px]">
+          <span>Analisis Short Trip Nelayan Tradisional</span>
+          <span className={isIdealRadius ? 'text-emerald-300 font-extrabold' : 'text-amber-300 font-extrabold'}>
+            {isIdealRadius ? 'Radius Ideal (2-6 Mil)' : 'Di Luar 2-6 Mil'}
+          </span>
+        </div>
+        <p className="text-sky-100/90 leading-relaxed text-[11px]">
+          📍 <strong>Data Operasional:</strong> Jarak {distNmi} Mil Laut ({formatKm(distKm)} km) dengan waktu tempuh {etaLabel} sekali jalan (estimasi standar 30 mnt – 3 jam). Menghemat konsumsi BBM untuk melaut pergi-pulang hari yang sama.
+        </p>
+      </div>
     </div>
   );
 }
@@ -88,7 +133,7 @@ function AiAnalysisCard({ analysis }: { analysis: FishingZoneAnalysis }) {
   const best = ai.recommendedZoneIndex !== undefined ? analysis.zones[ai.recommendedZoneIndex] : null;
 
   return (
-    <div className="bg-gradient-to-br from-[#0b2e59] to-[#162e52] rounded-2xl p-4 text-white shadow-lg border border-[#1f4275]">
+    <div className="bg-[#0c2d52] rounded-2xl p-5 text-white border border-zinc-700 space-y-3">
       <div className="flex items-center gap-2 mb-2.5">
         <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
         <span className="text-[10px] font-extrabold uppercase tracking-widest text-sky-300">
@@ -251,7 +296,7 @@ function ZoneCard({ zone, rank }: { zone: FishingZone; rank: number }) {
   );
 }
 
-export default function FishingPanel({ analysis, onReset, departure, targetZone }: FishingPanelProps) {
+export default function FishingPanel({ analysis, onReset, departure, targetZone, vesselInfo }: FishingPanelProps) {
   const sorted = [...analysis.zones].sort((a, b) => b.score - a.score);
 
   return (
@@ -283,7 +328,7 @@ export default function FishingPanel({ analysis, onReset, departure, targetZone 
 
       <div className="p-5 space-y-4">
         {departure && targetZone && (
-          <NavigationCard departure={departure} targetZone={targetZone} />
+          <NavigationCard departure={departure} targetZone={targetZone} vesselInfo={vesselInfo} />
         )}
 
         <AiAnalysisCard analysis={analysis} />

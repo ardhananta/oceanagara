@@ -9,7 +9,7 @@ import { analyzeSatellite, fetchTile, type Bbox } from '../satelit/route';
 import { detectSolidWaste } from '../satelit-s2/route';
 import { chlOf, sstOf } from '../satelit/route';
 import { fetchGfwEvents } from '../gfw/route';
-import { cardinalFromBearing, nearestCoast } from '@/components/peta-risiko/distances';
+import { cardinalFromBearing, nearestCoast, haversineKm } from '@/components/peta-risiko/distances';
 
 // Rekomendasi zona tangkap ikan berbasis data satelit asli (NASA GIBS):
 // 1. Klorofil-a (makanan fitoplankton) & SST dari produk resmi NASA.
@@ -245,7 +245,12 @@ export interface ZonaAnalysisBundle {
  * (Sentinel-2), anomali GIBS, arus BMKG, dan aktivitas Global Fishing Watch.
  * Dipakai oleh route GET zona-tangkap dan analisis kualitas ikan.
  */
-export async function analyzeZones(bbox: Bbox, dateParam: string): Promise<ZonaAnalysisBundle> {
+export async function analyzeZones(
+  bbox: Bbox,
+  dateParam: string,
+  departure?: { lat: number; lon: number },
+  isTraditional?: boolean
+): Promise<ZonaAnalysisBundle> {
   const bboxArr: [number, number, number, number] = [bbox.west, bbox.south, bbox.east, bbox.north];
   const centerLat = (bbox.north + bbox.south) / 2;
   const centerLon = (bbox.west + bbox.east) / 2;
@@ -442,8 +447,20 @@ export async function analyzeZones(bbox: Bbox, dateParam: string): Promise<ZonaA
 
   const midLatRad = (((bbox.north + bbox.south) / 2) * Math.PI) / 180;
 
-  // ── Bangun zona final + eksklusi kontaminasi ─────────────────────────────
   const zones: FishingZone[] = [];
+  const offshoreCandidates: Array<{
+    lat: number;
+    lon: number;
+    distDepKm: number;
+    distDepNmi: number;
+    score: number;
+    species: string[];
+    meanSst: number;
+    meanChl: number;
+    movementDeg: number;
+    movementLabel: string;
+  }> = [];
+
   let rejectedZones = 0;
 
   for (const cluster of zoneSeeds) {
@@ -489,7 +506,7 @@ export async function analyzeZones(bbox: Bbox, dateParam: string): Promise<ZonaA
 
     const meanSst = sumSst / n;
     const meanChl = sumChl / n;
-    const score = sumScore / n;
+    let score = sumScore / n;
     const coast = nearestCoast(cLat, cLon);
     const coastKm = coast ? coast.distanceKm : 400;
 
@@ -506,8 +523,58 @@ export async function analyzeZones(bbox: Bbox, dateParam: string): Promise<ZonaA
       movementLabel = `Menuju gradien makanan (klorofil) ${cardinalFromBearing(gradDeg)}`;
     }
 
-    // Aktivitas kapal penangkap di sekitar zona (radius 30 km) — indikasi
-    // feeding ground komersial; heading dominan kapal ≈ arah migrasi ikan.
+    // Spesies: jendela suhu & klorofil zona.
+    const species = SPECIES.filter(
+      (s) => meanSst >= s.sstMin && meanSst <= s.sstMax && meanChl >= s.chlMin && meanChl <= s.chlMax
+    )
+      .map((s) => s.name)
+      .slice(0, 4);
+
+    const flagged = meanChl > 8 ? 'Bloom klorofil ekstrem (>8 mg/m³) — risiko ledakan alga (HAB), waspada' : undefined;
+
+    if (blockedBy) {
+      rejectedZones++;
+      continue;
+    }
+
+    // BATAS KETAT JANGKAUAN NELAYAN TRADISIONAL (MAKSIMAL 10 MIL LAUT / 18.5 KM DARI PELABUHAN)
+    let distDepKm = 0;
+    let distDepNmi = 0;
+    if (departure) {
+      distDepKm = haversineKm(departure, { lat: cLat, lon: cLon });
+      distDepNmi = distDepKm / 1.852;
+    }
+
+    if (isTraditional && departure) {
+      if (distDepNmi > 10.0) {
+        // Simpan kandidat laut lepas untuk proyeksi pesisir jika tidak ada zona < 10 mil
+        offshoreCandidates.push({
+          lat: cLat,
+          lon: cLon,
+          distDepKm,
+          distDepNmi,
+          score,
+          species,
+          meanSst,
+          meanChl,
+          movementDeg,
+          movementLabel,
+        });
+        continue; // diskualifikasi zona > 10 mil dari daftar rekomendasi langsung!
+      }
+
+      let distFactor = 1.0;
+      if (distDepNmi >= 2 && distDepNmi <= 6) {
+        distFactor = 1.5; // Ideal 2-6 mil laut
+      } else if (distDepNmi < 2) {
+        distFactor = 1.2; // Sangat dekat < 2 mil
+      } else {
+        distFactor = 0.8; // 6 - 10 mil laut
+      }
+      score = Math.min(1.0, score * distFactor);
+    }
+
+    // Aktivitas kapal penangkap di sekitar zona (radius 30 km)
     let vesselsNear = 0;
     let vesselHeading: number | undefined;
     if (gfwRes && !gfwRes.isMock) {
@@ -527,20 +594,6 @@ export async function analyzeZones(bbox: Bbox, dateParam: string): Promise<ZonaA
       if (headings.length >= 2) vesselHeading = Math.round(meanHeading(headings));
     }
 
-    // Spesies: jendela suhu & klorofil zona.
-    const species = SPECIES.filter(
-      (s) => meanSst >= s.sstMin && meanSst <= s.sstMax && meanChl >= s.chlMin && meanChl <= s.chlMax
-    )
-      .map((s) => s.name)
-      .slice(0, 4);
-
-    const flagged = meanChl > 8 ? 'Bloom klorofil ekstrem (>8 mg/m³) — risiko ledakan alga (HAB), waspada' : undefined;
-
-    if (blockedBy) {
-      rejectedZones++;
-      continue;
-    }
-
     zones.push({
       lat: +cLat.toFixed(4),
       lon: +cLon.toFixed(4),
@@ -553,9 +606,38 @@ export async function analyzeZones(bbox: Bbox, dateParam: string): Promise<ZonaA
       movementDeg: +movementDeg.toFixed(0),
       movementLabel,
       coastKm: +coastKm.toFixed(1),
+      coastNmi: +(coastKm / 1.852).toFixed(1),
       ...(vesselsNear > 0 ? { nearbyVessels: vesselsNear } : {}),
       ...(vesselHeading !== undefined ? { vesselHeading } : {}),
       ...(flagged ? { flagged } : {}),
+    });
+  }
+
+  // JIKA TIDAK ADA ZONA DI DALAM RADIUS 10 MIL LAUT, buat Proyeksi Pesisir berbasis arah migrasi kawanan!
+  if (isTraditional && departure && zones.length === 0 && offshoreCandidates.length > 0) {
+    const bestOffshore = [...offshoreCandidates].sort((a, b) => b.score - a.score)[0];
+    const targetNmi = 4.0; // Proyeksi di radius aman 4 Mil Laut (~7.4 km) dari pelabuhan
+    const targetKm = targetNmi * 1.852;
+    const ratio = Math.min(0.8, targetKm / Math.max(1, bestOffshore.distDepKm));
+
+    const projLat = +(departure.lat + (bestOffshore.lat - departure.lat) * ratio).toFixed(4);
+    const projLon = +(departure.lon + (bestOffshore.lon - departure.lon) * ratio).toFixed(4);
+    const projCoast = nearestCoast(projLat, projLon);
+    const projCoastKm = projCoast ? projCoast.distanceKm : 7.4;
+
+    zones.push({
+      lat: projLat,
+      lon: projLon,
+      areaKm2: 8.5,
+      score: 0.88,
+      species: bestOffshore.species.length > 0 ? bestOffshore.species : ['Kembung', 'Tongkol', 'Layang'],
+      meanSst: bestOffshore.meanSst,
+      meanChl: bestOffshore.meanChl,
+      movementDeg: bestOffshore.movementDeg,
+      movementLabel: `${bestOffshore.movementLabel} (Proyeksi kawanan mendekati pesisir)`,
+      coastKm: +projCoastKm.toFixed(1),
+      coastNmi: +(projCoastKm / 1.852).toFixed(1),
+      flagged: `PROYEKSI PESISIR: Kawanan ikan terdeteksi di laut lepas (${bestOffshore.distDepNmi.toFixed(1)} Mil Laut) sedang bergerak ${bestOffshore.movementLabel.toLowerCase()}. Titik ini diproyeksikan sebagai jalur perlintasan terdekat (4.0 Mil Laut / ~7.4 km) dari pelabuhan Anda.`,
     });
   }
 
@@ -608,6 +690,10 @@ export async function GET(req: NextRequest) {
   const east = Number(searchParams.get('east'));
   const west = Number(searchParams.get('west'));
 
+  const depLat = Number(searchParams.get('depLat'));
+  const depLon = Number(searchParams.get('depLon'));
+  const userRole = searchParams.get('userRole');
+
   if (![north, south, east, west].every(Number.isFinite)) {
     return NextResponse.json({ error: 'north, south, east, west diperlukan' }, { status: 400 });
   }
@@ -620,6 +706,10 @@ export async function GET(req: NextRequest) {
   const dateParam = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get('date') ?? '')
     ? searchParams.get('date')!
     : dateDaysAgo(0);
-  const bundle = await analyzeZones(bbox, dateParam);
+
+  const departure = Number.isFinite(depLat) && Number.isFinite(depLon) ? { lat: depLat, lon: depLon } : undefined;
+  const isTraditional = userRole === 'nelayan_tradisional';
+
+  const bundle = await analyzeZones(bbox, dateParam, departure, isTraditional);
   return NextResponse.json(bundle.analysis);
 }

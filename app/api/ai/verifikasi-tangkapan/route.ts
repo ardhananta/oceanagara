@@ -251,8 +251,8 @@ function withLabelSafe(input: TangkapanVerificationInput): {
   };
 }
 
-/** Model vision utama & cadangan (analisis foto). scout sudah deprecated — pakai maverick lalu qwen. */
-const VISION_MODELS = ['meta-llama/llama-4-maverick-17b-128e-instruct', 'qwen/qwen3.6-27b'];
+/** Model vision utama & cadangan (Groq free tier). */
+const VISION_MODELS = ['qwen/qwen3.6-27b'];
 
 /** Validasi data URL foto (data:image/jpeg|png|webp;base64,). */
 function isPhotoDataUrl(v: unknown): v is string {
@@ -353,7 +353,7 @@ Analisis data ${photos.length > 0 ? 'dan foto ' : ''}di atas lalu hasilkan JSON 
       completion = await runCompletion(groq, {
         model: 'llama-3.3-70b-versatile',
         messages: [
-{ role: 'system' as const, content: SYSTEM_PROMPT },
+          { role: 'system' as const, content: SYSTEM_PROMPT },
           { role: 'user', content: dataContext },
         ],
         temperature: 0.3,

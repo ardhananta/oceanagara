@@ -76,9 +76,12 @@ function buildResponseFromBmkg(wind: InawavesWindGrid) {
   };
 }
 
-export async function GET() {
-  // Serve from cache when fresh
-  if (cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const forceRefresh = searchParams.get('refresh') === '1' || searchParams.get('force') === '1';
+
+  // Serve from cache when fresh unless forced
+  if (!forceRefresh && cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) {
     return NextResponse.json(cache.payload);
   }
 

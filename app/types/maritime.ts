@@ -262,6 +262,8 @@ export interface FishingZone {
   movementLabel: string;
   /** Jarak ke pantai terdekat (km) */
   coastKm: number;
+  /** Jarak ke pantai terdekat dalam Mil Laut (NMi) */
+  coastNmi?: number;
   /** Jumlah kapal penangkap (GFW fishing/loitering) dalam radius 30 km dari zona */
   nearbyVessels?: number;
   /** Heading dominan kapal di sekitar zona (°, 0=N) — arah migrasi ikan komersial */
@@ -472,6 +474,151 @@ export interface TangkapanVerificationVerdict {
   photosAnalyzed?: boolean;
   /** true = analisis degradasi (AI tidak terjangkau, pakai heuristik) */
   degraded?: boolean;
+}
+
+// ── Scan Kualitas Ikan (analisis foto kesegaran via model vision) ─────────────
+
+/** Penilaian satu indikator fisik ikan dari foto. */
+export interface FishScanIndicator {
+  /** Kunci indikator: eyes | gills | scales | slime | flesh | smell | abdomen | rigor */
+  key: string;
+  /** Nama indikator (Mata, Insang, Sisik, ...) */
+  name: string;
+  /** Status indikator: segar / mulai berubah / tidak segar */
+  status: 'good' | 'fair' | 'bad';
+  /** Deskripsi detail hasil pengamatan indikator pada foto */
+  observation: string;
+  /** Kontribusi skor indikator sesuai status (100/60/20). */
+  score: number;
+}
+
+/** Hasil scan kesegaran ikan dari analisis foto. */
+export interface FishScanResult {
+  /** Skor kesegaran 0-100 (tinggi = lebih segar) */
+  freshnessScore: number;
+  /** Segar / Mulai Berubah / Tidak Segar */
+  freshnessLabel: string;
+  /** Spesies ikan yang terdeteksi/diisi pengguna */
+  species: string;
+  /** Ringkasan 1-2 kalimat status kesegaran */
+  summary: string;
+  /** Penilaian detail per indikator fisik */
+  indicators: FishScanIndicator[];
+  /** Temuan visual detail dari foto (mata, insang, sisik, lendir, daging, rigor) */
+  findings: string[];
+  /** Saran penanganan & penyimpanan */
+  storageAdvice: string[];
+  /** Peringatan risiko */
+  risks: string[];
+  /** true = analisis degradasi (model vision tidak terjangkau, pakai heuristik) */
+  degraded?: boolean;
+}
+
+// ── Laporan Limbah Warga (foto + validasi keaslian berbasis AI) ──────────────
+
+/** Jenis limbah yang dilaporkan warga. */
+export type WasteType = 'plastik' | 'tumpahan-minyak' | 'kimia-pabrik' | 'organik' | 'sampah-campuran' | 'lainnya';
+
+/** Status akhir validasi laporan. */
+export type WasteValidationStatus = 'verified' | 'suspected' | 'rejected';
+
+/** Lokasi pelaporan (GPS perangkat atau manual). */
+export interface WasteLocationInfo {
+  lat: number;
+  lon: number;
+  /** Akurasi GPS dalam meter (bila dari perangkat). */
+  accuracyMeters?: number | null;
+  /** asal koordinat: GPS perangkat atau input manual. */
+  source: 'gps' | 'manual';
+  /** Nama area / alamat deskriptif dari pelapor (opsional). */
+  label?: string;
+}
+
+/** Metadata EXIF foto yang diekstrak di sisi klien sebelum kompresi. */
+export interface WasteExifInfo {
+  gpsLat?: number;
+  gpsLon?: number;
+  /** Waktu pengambilan foto (UTC ISO, dari EXIF) */
+  capturedAt?: string;
+}
+
+/** Cek keaslian foto oleh AI vision. */
+export interface WastePhotoCheck {
+  /** benar-benar foto limbah/pencemaran asli (bukan layar kaca/stock/foto lama) */
+  genuine: boolean;
+  /** keyakinan 0-100 */
+  score: number;
+  /** catatan analisis visual */
+  note: string;
+  /** jenis limbah yang terdeteksi AI */
+  wasteType: string;
+  /** lingkungan yang terlihat (pantai / sungai / laut / darat / tidak jelas) */
+  environment: string;
+  /** tanda-tanda kecurigaan (foto berulang, rekayasa, kualitas rendah, dll) */
+  riskSigns: string[];
+}
+
+/** Cek kesesuaian lokasi: GPS perangkat vs GPS EXIF foto. */
+export interface WasteLocationCheck {
+  /** apakah foto punya EXIF GPS */
+  referenced: boolean;
+  /** jarak antara GPS perangkat dan GPS EXIF foto (meter), null bila tidak ada EXIF */
+  distanceMeters: number | null;
+  /** match = ≤150 m, close = ≤2 km, mismatch = >2 km, unverifiable = tanpa EXIF GPS */
+  verdict: 'match' | 'close' | 'mismatch' | 'unverifiable';
+  note: string;
+}
+
+/** Cek kesesuaian waktu: waktu EXIF foto vs waktu pelaporan. */
+export interface WasteTimestampCheck {
+  /** waktu pengambilan foto dari EXIF (ISO, UTC) */
+  photoTime: string | null;
+  /** selisih jam (foto vs laporan); null bila tanpa EXIF waktu */
+  driftHours: number | null;
+  /** valid = selisih ≤ 3 jam, drifted = > 3 jam, unverifiable = tanpa EXIF waktu */
+  verdict: 'valid' | 'drifted' | 'unverifiable';
+  note: string;
+}
+
+/** Hasil validasi keaslian laporan limbah. */
+export interface WasteReportValidation {
+  status: WasteValidationStatus;
+  /** keyakinan keseluruhan 0-100 */
+  confidence: number;
+  photoCheck: WastePhotoCheck;
+  locationCheck: WasteLocationCheck;
+  timestampCheck: WasteTimestampCheck;
+  /** ringkasan 1-2 kalimat */
+  summary: string;
+  findings: string[];
+  recommendations: string[];
+  /** model Groq yang dipakai, bila analisis AI jalan */
+  model?: string;
+  /** true = analisis degradasi (AI tidak terjangkau, validasi geospasial saja) */
+  degraded?: boolean;
+}
+
+/** Satu laporan limbah warga. */
+export interface WasteReport {
+  id?: string;
+  uid: string;
+  /** nama pelapor (dari profil) */
+  reporterName: string;
+  location: WasteLocationInfo;
+  /** jenis limbah pilihan pelapor */
+  wasteType: WasteType;
+  description: string;
+  /** thumbnail foto (base64, max 512px) */
+  photoThumbs: string[];
+  /** waktu laporan tercatat (ISO) */
+  capturedAt: string;
+  /** metadata EXIF foto (GPS & waktu) */
+  exif?: WasteExifInfo | null;
+  /** hasil validasi AI */
+  validation: WasteReportValidation | null;
+  /** kunci deduplikasi laporan (bulan + koordinat + hash foto) */
+  reportKey?: string;
+  createdAt?: unknown;
 }
 
 // ── Arus Pencemaran (prediksi penyebaran limbah berbasis arus) ────────────────

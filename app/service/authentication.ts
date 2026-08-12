@@ -2,13 +2,15 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   updateProfile,
   signOut,
   onAuthStateChanged,
   User,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, getDocFromCache, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/firebase";
 import { getCachedUserProfile, invalidateUserProfile, setCachedUserProfile } from "./userCache";
 
@@ -56,6 +58,26 @@ const ROLE_DASHBOARD: Record<UserRole, DashboardPath> = {
   "peneliti":       "/dashboard/peneliti",
 };
 
+/** Exponential backoff retry helper for transient network/Firestore channel disconnects */
+async function executeWithRetry<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delayMs = 300
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt < retries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs * Math.pow(2, attempt)));
+      }
+    }
+  }
+  throw lastError;
+}
+
 function resolveError(code: string | undefined, message?: string): string {
   const map: Record<string, string> = {
     // Auth errors
@@ -98,11 +120,11 @@ async function bootstrapUserDoc(
   provider: "email" | "google"
 ): Promise<void> {
   const userRef = doc(db, "users", user.uid);
-  const snap = await getDoc(userRef);
+  const snap = await executeWithRetry(() => getDoc(userRef)).catch(() => null);
 
   // Only write baseline doc if user doesn't have one in Firestore
-  if (!snap.exists()) {
-    await setDoc(userRef, {
+  if (snap && !snap.exists()) {
+    await executeWithRetry(() => setDoc(userRef, {
       uid:              user.uid,
       email:            user.email ?? null,
       displayName:      user.displayName ?? null,
@@ -110,26 +132,56 @@ async function bootstrapUserDoc(
       provider,
       profileCompleted: false,
       createdAt:        serverTimestamp(),
-    });
+    })).catch((fsErr) => console.warn("Bootstrap Firestore doc failed:", fsErr));
   }
 }
 
-/** Read Firestore role and return the correct redirect path. */
+/** Read Firestore role and return the correct redirect path. Cache-first + retry resilient + cache fallback. */
 async function resolveRedirect(uid: string): Promise<AuthResult["redirectTo"]> {
   // If running on the server (SSR), skip Firestore call
   if (typeof window === "undefined") {
     return "/fill-form";
   }
 
+  // 1. Fast path: check fresh client-side cache
+  const cached = getCachedUserProfile(uid);
+  if (cached && cached.profileCompleted && cached.role) {
+    return ROLE_DASHBOARD[cached.role] ?? "/fill-form";
+  }
+
+  // 2. Retry-resilient query to Firestore server
   try {
-    const snap = await getDoc(doc(db, "users", uid));
+    const snap = await executeWithRetry(() => getDoc(doc(db, "users", uid)));
     if (!snap.exists()) return "/fill-form";
 
-    const data = snap.data() as Partial<UserProfile>;
+    const data = snap.data() as UserProfile;
     if (!data.profileCompleted || !data.role) return "/fill-form";
+
+    setCachedUserProfile(uid, data);
     return ROLE_DASHBOARD[data.role] ?? "/fill-form";
   } catch (err) {
-    console.error("Firestore redirect check failed (client offline?):", err);
+    console.warn("Firestore server redirect check failed, trying Firestore local cache:", err);
+
+    // Try reading directly from Firestore's local cache if network/WebChannel channel closed during macOS fullscreen
+    try {
+      const cacheSnap = await getDocFromCache(doc(db, "users", uid));
+      if (cacheSnap.exists()) {
+        const data = cacheSnap.data() as UserProfile;
+        if (data.profileCompleted && data.role) {
+          setCachedUserProfile(uid, data);
+          return ROLE_DASHBOARD[data.role] ?? "/fill-form";
+        }
+      }
+    } catch (cacheErr) {
+      console.warn("Firestore local cache read failed:", cacheErr);
+    }
+
+    // 3. Fallback to any cached copy (even if expired) before defaulting to /fill-form
+    const expiredCached = getCachedUserProfile(uid, true);
+    if (expiredCached && expiredCached.profileCompleted && expiredCached.role) {
+      return ROLE_DASHBOARD[expiredCached.role] ?? "/fill-form";
+    }
+
     return "/fill-form";
   }
 }
@@ -182,38 +234,71 @@ export async function registerWithEmail(
 }
 
 /**
- * Sign in / register with Google OAuth popup.
+ * Sign in / register with Google OAuth popup. Fallback to redirect if popup is blocked.
  * Bootstraps Firestore for new users, then resolves role-based redirect.
  */
 export async function loginWithGoogle(): Promise<AuthResult> {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+
+  let user: User;
   try {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: "select_account" });
-
-    const { user } = await signInWithPopup(auth, provider);
-
-    // Bootstrap doc (safe fallback if Firestore fails)
-    try {
-      await bootstrapUserDoc(user, "google");
-    } catch (fsErr) {
-      console.warn("Bootstrap Firestore doc failed during Google login:", fsErr);
-    }
-
-    const redirectTo = await resolveRedirect(user.uid);
-    return { user, redirectTo };
+    const result = await signInWithPopup(auth, provider);
+    user = result.user;
   } catch (err: unknown) {
-    console.error("Google Auth error details:", err);
+    console.warn("Google Auth popup error details:", err);
     const code = (err as { code?: string })?.code;
     const message = (err as { message?: string })?.message;
+
+    if (code === "auth/popup-blocked" || code === "auth/cancelled-popup-request") {
+      await signInWithRedirect(auth, provider);
+      return new Promise(() => {});
+    }
+
     throw new Error(resolveError(code, message));
+  }
+
+  // Bootstrap doc (safe fallback if Firestore fails)
+  try {
+    await bootstrapUserDoc(user, "google");
+  } catch (fsErr) {
+    console.warn("Bootstrap Firestore doc failed during Google login:", fsErr);
+  }
+
+  const redirectTo = await resolveRedirect(user.uid);
+  return { user, redirectTo };
+}
+
+/** Helper to process pending Google OAuth redirect result on app load if signInWithRedirect was used. */
+export async function checkGoogleRedirectResult(): Promise<AuthResult | null> {
+  try {
+    const result = await getRedirectResult(auth);
+    if (!result?.user) return null;
+    await bootstrapUserDoc(result.user, "google");
+    const redirectTo = await resolveRedirect(result.user.uid);
+    return { user: result.user, redirectTo };
+  } catch (err) {
+    console.error("Google redirect result error:", err);
+    return null;
   }
 }
 
-/** Sign out the current user. */
+/** Fast, instant sign out for the current user. */
 export async function logout(): Promise<void> {
   const uid = auth.currentUser?.uid;
   if (uid) invalidateUserProfile(uid);
-  await signOut(auth);
+
+  try {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(`oceanagara:user:${uid}`);
+      sessionStorage.clear();
+    }
+  } catch {
+    // ignore storage access errors
+  }
+
+  // Execute Firebase signOut asynchronously in background without blocking caller UI thread
+  signOut(auth).catch((err) => console.warn("Background signOut error:", err));
 }
 
 /** Subscribe to Firebase auth state changes. */
@@ -222,7 +307,7 @@ export function onAuthChange(callback: (user: User | null) => void) {
 }
 
 /**
- * Persist the completed user profile to Firestore.
+ * Persist the completed user profile to Firestore with retries.
  * Sets profileCompleted: true so future logins redirect to the dashboard.
  */
 export async function saveUserProfile(
@@ -234,18 +319,20 @@ export async function saveUserProfile(
     cleanedData[key] = val === undefined ? null : val;
   }
 
-  await setDoc(doc(db, "users", uid), {
-    ...cleanedData,
-    profileCompleted:   true,
-    profileCompletedAt: serverTimestamp(),
-  });
+  await executeWithRetry(() =>
+    setDoc(doc(db, "users", uid), {
+      ...cleanedData,
+      profileCompleted:   true,
+      profileCompletedAt: serverTimestamp(),
+    })
+  );
 
   // Profile just changed → never serve the stale cached copy
   invalidateUserProfile(uid);
 }
 
 /**
- * Fetch a user's full profile from Firestore (cache-first).
+ * Fetch a user's full profile from Firestore (cache-first + retry-resilient + local cache fallback).
  * Returns null if the document doesn't exist.
  */
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
@@ -254,14 +341,23 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   if (cached) return cached;
 
   try {
-    const snap = await getDoc(doc(db, "users", uid));
+    const snap = await executeWithRetry(() => getDoc(doc(db, "users", uid)));
     if (!snap.exists()) return null;
     const profile = snap.data() as UserProfile;
     setCachedUserProfile(uid, profile);
     return profile;
   } catch (err) {
-    console.error("getUserProfile failed (Firestore offline/permission issue?):", err);
-    // Fall back to any stored copy (even expired) rather than returning null
+    console.warn("getUserProfile server fetch failed, trying Firestore local cache:", err);
+    try {
+      const cacheSnap = await getDocFromCache(doc(db, "users", uid));
+      if (cacheSnap.exists()) {
+        const profile = cacheSnap.data() as UserProfile;
+        setCachedUserProfile(uid, profile);
+        return profile;
+      }
+    } catch {
+      // ignore
+    }
     return getCachedUserProfile(uid, true);
   }
 }

@@ -67,7 +67,7 @@ let landCells: Uint8Array | null = null;
 
 function getLandCells(): Uint8Array {
   if (landCells) return landCells;
-  const binary = atob(LAND_GRID_B64);
+  const binary = typeof atob !== 'undefined' ? atob(LAND_GRID_B64) : Buffer.from(LAND_GRID_B64, 'base64').toString('binary');
   landCells = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) landCells[i] = binary.charCodeAt(i);
   return landCells;

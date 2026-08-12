@@ -154,14 +154,15 @@ export default function WaveMap() {
           </button>
 
           <button
-            onClick={refreshAll}
+            onClick={() => refreshAll(true)}
             disabled={isRefreshing}
-            title="Refresh Data BMKG"
-            className="p-2 border border-zinc-300 hover:bg-zinc-100 rounded-xl transition-colors text-zinc-700 flex-shrink-0 disabled:opacity-50"
+            title="Perbarui & Tarik Data Terkini dari BMKG"
+            className="px-3.5 py-2 bg-[#162e52] hover:bg-[#1f4275] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all duration-200 shadow-xs flex items-center gap-2 flex-shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <svg className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
             </svg>
+            <span>{isRefreshing ? 'Memuat BMKG…' : 'Perbarui Data BMKG'}</span>
           </button>
         </div>
       </div>
@@ -198,22 +199,53 @@ export default function WaveMap() {
       )}
 
       {windGridMissing && mapViewMode === 'wind' && (
-        <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-          <svg className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-          </svg>
-          <p className="text-[11px] text-amber-700 leading-relaxed">
-            Grid angin INAWAVES tidak dapat diambil dari BMKG saat ini, sehingga animasi streamline tidak tersedia.
-            Data badge marker tetap dari API BMKG bila berhasil dimuat.
-          </p>
+        <div className="flex items-start justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3.5">
+          <div className="flex items-start gap-2.5">
+            <svg className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+            </svg>
+            <p className="text-[11px] text-amber-800 leading-relaxed">
+              Grid angin INAWAVES belum dapat diambil dari server BMKG saat ini. Klik tombol untuk memuat ulang data grid angin.
+            </p>
+          </div>
+          <button
+            onClick={() => refreshAll(true)}
+            disabled={isRefreshing}
+            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center gap-1.5 flex-shrink-0 disabled:opacity-50"
+          >
+            <svg className={`w-3 h-3 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+            Coba Muat Ulang Grid
+          </button>
         </div>
       )}
 
       {fetchError && (
-        <div className="flex items-center gap-2.5 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
-          <p className="text-[11px] text-orange-700">
-            Seluruh permintaan telemetri BMKG gagal. Kemungkinan server BMKG tidak terjangkau — coba refresh secara manual.
-          </p>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
+          <div className="flex items-start gap-2.5">
+            <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+            </svg>
+            <div>
+              <p className="text-xs font-bold text-red-800 uppercase tracking-wider">
+                Gagal Menghubungkan ke Server Telemetri BMKG
+              </p>
+              <p className="text-[11px] text-red-600 mt-0.5">
+                Koneksi ke server BMKG mengalami gangguan. Klik tombol untuk mengambil data terbaru secara langsung dari BMKG.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => refreshAll(true)}
+            disabled={isRefreshing}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center gap-1.5 flex-shrink-0 shadow-xs disabled:opacity-50"
+          >
+            <svg className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+            <span>{isRefreshing ? 'Memuat Data...' : 'Segarkan Data BMKG'}</span>
+          </button>
         </div>
       )}
 
@@ -509,7 +541,7 @@ export default function WaveMap() {
                           </>
                         ) : (
                           <span className={`text-[10px] font-semibold ${isSelected ? 'text-amber-200' : 'text-amber-600'}`}>
-                            {pt.loading ? 'Memuat data…' : pt.failed ? 'Gagal dimuat' : 'Data tidak tersedia'}
+                            {pt.loading ? 'Memuat data…' : pt.failed ? 'Gagal dimuat (Klik untuk perbarui)' : 'Data tidak tersedia'}
                           </span>
                         )}
                       </div>
